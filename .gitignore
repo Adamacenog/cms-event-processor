@@ -1,0 +1,65 @@
+# .NET build and package outputs
+**/[Bb]in/
+**/[Oo]bj/
+artifacts/
+*.nupkg
+*.snupkg
+
+# Test, coverage, benchmark, and generated acceptance reports
+**/TestResults/
+**/coverage/
+**/coverage-report/
+**/BenchmarkDotNet.Artifacts/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.xml
+coverage*.json
+lcov.info
+newman/
+playwright-report/
+
+# IDE and operating-system files (shared editor settings can still be committed)
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local secrets and developer overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/appsettings.[Ll]ocal.json
+**/appsettings.*.[Ll]ocal.json
+secrets/
+.secrets/
+*.pfx
+*.p12
+*.key
+
+# Local databases, volumes, logs, and backups
+.data/
+docker-data/
+**/logs/
+*.log
+*.mdf
+*.ndf
+*.ldf
+*.bak
+
+# Exported private Postman environments; share only empty-value templates
+docs/postman/*.local.postman_environment.json
+docs/postman/*.private.postman_environment.json
+
+# Optional local tooling and temporary working files
+node_modules/
+.codex/
+.tmp/
+tmp/
+*.tmp
