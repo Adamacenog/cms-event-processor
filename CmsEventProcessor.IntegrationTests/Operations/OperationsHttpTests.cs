@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.Text;
+using CmsEventProcessor.Api.Operations;
 using CmsEventProcessor.Application.Identity.Contracts;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -103,11 +106,11 @@ public sealed class OperationsHttpTests
     }
 
     /// <summary>
-    /// Invalid operational budgets, rate limits, and collector destinations fail web startup with fixed validation messages.
+    /// Invalid operational settings fail actual host startup through the production registration without deferred web-host disposal masking validation.
     /// </summary>
     /// <param name="key">The fixed deployment option under test.</param>
     /// <param name="value">The deliberately invalid option value.</param>
-    /// <returns>A task completing after failed startup and test-host disposal.</returns>
+    /// <returns>A task completing after the original options validation failure and host disposal.</returns>
     [Theory]
     [InlineData("Operations:ReadinessTimeout", "00:00:00")]
     [InlineData("Operations:ShutdownTimeout", "00:00:00")]
@@ -115,9 +118,15 @@ public sealed class OperationsHttpTests
     [InlineData("AuthenticationRateLimit:PermitLimit", "100001")]
     [InlineData("AuthenticationRateLimit:Window", "00:00:00")]
     [InlineData("Observability:Endpoint", "http://collector.example.test/")]
-    public async Task InvalidOperationalConfigurationFailsStartup(string key, string value)
+    public async Task InvalidOperationalConfigurationFailsHostStartup(string key, string value)
     {
-        await using var factory = new FoundationFactory { Settings = new() { [key] = value } };
-        Assert.Throws<OptionsValidationException>(() => factory.Client());
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [key] = value });
+        builder.Services.AddOperationalReadiness();
+        await Assert.ThrowsAsync<OptionsValidationException>(async () =>
+        {
+            using var host = builder.Build();
+            await host.StartAsync();
+        });
     }
 }
