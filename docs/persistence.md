@@ -116,7 +116,7 @@ The default network is cms-event-processor_default. Add --network cms-event-proc
 The integration project tags real database cases Category=Sql. By default, one Testcontainers SQL instance is started and each case creates/migrates/deletes a unique cms_test_<guid> catalog. Docker failures fail these tests rather than silently skipping them.
 
 ```sh
-dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql&Category!=Acceptance"
+dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql"
 dotnet test CmsEventProcessor.IntegrationTests/CmsEventProcessor.IntegrationTests.csproj --configuration Release --no-build --no-restore --filter "Category=Sql"
 ```
 

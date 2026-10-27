@@ -11,9 +11,7 @@ artifacts
 CmsEventProcessor.UnitTests
 CmsEventProcessor.IntegrationTests
 docs
-scripts
 node_modules
-**/node_modules
 .env*
 .secrets
 secrets

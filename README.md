@@ -20,7 +20,7 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [Consumer implementation](docs/consumers.md) | Visibility, pagination, local disabling, read/write separation, and SQL evidence |
 | [Operations and troubleshooting](docs/operations.md) | Protected health, rate limits, sanitized telemetry, shutdown, and recovery |
 | [Measured workload](docs/performance.md) | Reproducible synthetic workload and actual request/transaction/lock measurements |
-| [Verification and evidence](docs/verification.md) | Suite commands, published-host Postman acceptance, CI, and assessment coverage |
+| [Verification and evidence](docs/verification.md) | Suite commands, manual Postman walkthrough, CI, and assessment coverage |
 | [Deployment and temporary demo](docs/deployment.md) | Local/tunnel setup, Azure alternatives, transport and cost assumptions |
 | [Release procedure](docs/release.md) | Review, source tagging, image identity, and publication steps |
 | [Postman walkthrough](docs/postman/README.md) | Executable CMS/reader/admin scenarios with empty shared credentials |
@@ -156,7 +156,7 @@ See the [access decision](docs/decisions/003-access-and-read-write-boundaries.md
 
 ## Running locally
 
-This quickstart takes a few operator steps once prerequisites are installed; SDK/image downloads and first SQL startup can take longer. Install the exact **.NET SDK 10.0.301** from [global.json](global.json) and Docker with x86-64 Linux containers, or use a compatible external SQL Server. On Apple Silicon, run the API natively against external SQL; see the [SQL guide](docs/persistence.md#local-sql-setup). Postman is optional for the walkthrough; Node and Python are unnecessary for normal API execution.
+This quickstart takes a few operator steps once prerequisites are installed; SDK/image downloads and first SQL startup can take longer. Install the exact **.NET SDK 10.0.301** from [global.json](global.json) and Docker with x86-64 Linux containers, or use a compatible external SQL Server. On Apple Silicon, run the API natively against external SQL; see the [SQL guide](docs/persistence.md#local-sql-setup). Postman is optional for the walkthrough; Python is unnecessary for normal API execution.
 
 1. Clone this repository and work from its root:
 
@@ -274,22 +274,15 @@ From the repository root after the Release build:
 
 ```sh
 dotnet format CmsEventProcessor.slnx --verify-no-changes --no-restore
-dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql&Category!=Acceptance"
+dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql"
 dotnet test CmsEventProcessor.IntegrationTests --configuration Release --no-build --no-restore --filter "Category=Sql"
 ```
 
-The first test command needs no SQL or Node. SQL cases need Docker or a private `CMS_TEST_SQL_CONNECTION` to a dedicated test server. Optional automated Postman acceptance uses Node 24, locked Newman, a published real API, and its own migrated SQL catalog:
-
-```sh
-npm ci --prefix scripts/acceptance --ignore-scripts
-dotnet test CmsEventProcessor.IntegrationTests --configuration Release --no-build --no-restore --filter "Category=Acceptance"
-```
-
-With all prerequisites, omit the filter to run every suite. See [verification](docs/verification.md) for the suite matrix, isolated credentials/cleanup, evidence boundaries, and acceptance-tool dependency advisories. Python is used only by the separate optional [load exercise](docs/operations.md#reproduce-the-synthetic-load-exercise).
+The first test command needs no SQL. SQL cases need Docker or a private `CMS_TEST_SQL_CONNECTION` to a dedicated test server. Omit the filter to run all .NET suites when SQL is available. See [verification](docs/verification.md) for the suite matrix and evidence boundaries, and use [Postman](docs/postman/README.md) for the manual API walkthrough. Python is used only by the separate optional [load exercise](docs/operations.md#reproduce-the-synthetic-load-exercise).
 
 Domain unit tests cover ordering/publication/deletion decisions, semantic JSON content comparison, immutable state, and local overrides. Identity unit tests cover account generation, hashing, safe file updates, configuration validation, startup snapshots, and contract/result boundaries. HTTP integration tests run the actual middleware with isolated credentials and test-only routes, covering scheme/role boundaries, malformed headers, transport security, response/log privacy, missing configuration, and credential rotation after restart. Real SQL tests verify atomic processing, replay, retention, concurrency, cancellation, failure boundaries, and migrations; see the [SQL test guide](docs/persistence.md#test-execution-and-evidence).
 
-Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests and the published-host Postman collection before the application container build. Exact revision results are linked in the PR and Actions. Test-only probe controllers are excluded from the shipped application.
+Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests before the application container build. Exact revision results are linked in the PR and Actions. Test-only probe controllers are excluded from the shipped application.
 
 The webhook, consumer endpoints, and Postman business walkthrough are available. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers can configure a remote compatible SQL Server as described in the SQL guide. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
 
