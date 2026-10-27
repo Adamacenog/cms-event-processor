@@ -21,6 +21,7 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
     public bool AllowLoopbackHttp { get; init; }
     public string RemoteAddress { get; init; } = "127.0.0.1";
     public bool IncludeTestControllers { get; init; } = true;
+    public string EnvironmentName { get; init; } = "Testing";
     public Dictionary<string, string?> Settings { get; init; } = new();
     public Action<IServiceCollection>? ConfigureTestServices { get; init; }
     public CaptureLogger Logs { get; } = new();
@@ -31,7 +32,7 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
     /// <param name="builder">The test host builder receiving isolated configuration, probe controllers, and diagnostic services.</param>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(EnvironmentName);
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             // Tests must never consume a developer's real accounts or local secrets.

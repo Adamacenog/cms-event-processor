@@ -57,6 +57,8 @@ Logs report safe validation counts, trace IDs, processing classifications, event
 
 Any configured account may retrieve `/openapi/v1.json`; business operation schemes remain separate. The generated document includes implemented routes only, response DTOs, the strict envelope/conditional content schema, optional key header, and safe response codes. It uses ASP.NET Core's [OpenAPI transformers](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/customize-openapi?view=aspnetcore-10.0) because ingestion deliberately reads exact bytes before typed construction. Microsoft.OpenApi is pinned to patched 2.7.5 to retain vulnerability auditing; see the [upstream advisory](https://github.com/advisories/GHSA-v5pm-xwqc-g5wc).
 
+Development hosts also expose authenticated Swagger UI at `/swagger`, using this same document and the bundled `Swashbuckle.AspNetCore.SwaggerUI` assets. The UI accepts any configured identity, requires operation-specific credentials for API calls, and does not persist Swagger authorization. See the [interactive documentation guide](development.md#interactive-api-documentation) for browser sign-in and launch behavior. HTTP tests cover access to the page/assets, preservation of business permissions and transport checks, and absence of the UI outside Development.
+
 The [Postman walkthrough](postman/README.md) provides executable synthetic ingestion, replay/conflict, validation, duplicate, deletion, and documentation requests. Templates contain no credentials. The collection now includes reader/admin state checks and local disabling.
 
 ## Verification boundaries
