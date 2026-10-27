@@ -26,6 +26,8 @@ Hard-delete content while retaining a metadata-only marker. A publish/unpublish 
 
 Arrival-order-only processing is easy but lets delayed events corrupt state. Version-only comparison cannot order versionless deletes or same-version publication changes. Removing all metadata on delete permits stale resurrection. Clearing an admin override on publish undermines the local administrative decision.
 
-## Required evidence
+## Implementation and required evidence
+
+The pure transition implementation and its unit scenarios are described in the [domain implementation guide](../entity-lifecycle.md). The domain preserves source content, compares parsed JSON values, and returns proposed state without mutating its inputs. Unit evidence does not establish SQL deletion, transactions, or endpoint visibility; those checks remain with persistence and API delivery.
 
 Unit and SQL integration tests cover missing revisions, unseen unpublish, duplicates, stale delivery, timestamp/version ties, payload conflicts, unknown-ID deletes, local overrides, and recreation. Add an end-to-end Postman example specifically demonstrating unseen-unpublish and stale-after-delete behavior.

@@ -2,7 +2,7 @@
 
 A .NET service for receiving CMS events, maintaining the latest entity state, and exposing confidential content through an authenticated API.
 
-**Status: service foundation implemented; business processing is pending.** The host, account provisioning, Basic authentication, access policies, safe errors, unit/HTTP integration tests, CI definition, and container build are present. CMS, entity, database, and health endpoints are not implemented yet.
+**Status: service foundation and domain lifecycle rules implemented; transactional processing is pending.** The host, account provisioning, Basic authentication, access policies, safe errors, unit/HTTP integration tests, CI definition, and container build are present. Pure domain transitions cover publication, ordering, deletion, and local overrides. SQL persistence and CMS, entity, and health endpoints are not implemented yet.
 
 ## Start here
 
@@ -11,6 +11,7 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [Assessment brief](docs/assessment/brief.md) | Readable assessment with the employer's requirements preserved |
 | [Original assessment](docs/assessment/original.md) | Unmodified source supplied for the challenge |
 | [Architecture](docs/architecture.md) | Components, persistence, security, and processing guarantees |
+| [Domain lifecycle implementation](docs/entity-lifecycle.md) | Implemented state transitions, payload semantics, and unit-test evidence |
 | [API contract](docs/api.md) | Approved endpoint design, authentication, validation, and responses |
 | [Authentication and credential setup](#authentication-and-credential-setup) | Account provisioning, configuration, and credential rotation |
 | [Development and container setup](docs/development.md) | Configuration precedence, deployment secrets, and HTTPS container execution |
@@ -35,6 +36,9 @@ cms-event-processor/
         Contracts/
         Models/
     Domain/
+      Entities/
+        Models/
+        Services/
     Infrastructure/
       Identity/
         Models/
@@ -46,7 +50,7 @@ cms-event-processor/
   docs/
 ```
 
-The production folders separate responsibilities within a single assembly. Authentication and provisioning share the Application identity contracts and safe results. Infrastructure owns configured account hashes, verification, and file updates. The API adapts those contracts to Basic Authentication and account commands; `Program.cs` connects implementations through dependency injection. The Domain folder is reserved for the upcoming entity rules.
+The production folders separate responsibilities within a single assembly. Authentication and provisioning share the Application identity contracts and safe results. Infrastructure owns configured account hashes, verification, and file updates. The API adapts those contracts to Basic Authentication and account commands; `Program.cs` connects implementations through dependency injection. Domain owns the pure entity lifecycle rules, immutable snapshots, and content-free deletion markers.
 
 Folder and namespace boundaries are maintained through review rather than separate project references. Tests check that shared identity contract signatures exclude HTTP/storage types and that authentication results contain no stored hashes. See the [identity boundaries](docs/architecture.md#shared-identity-boundaries) for the design rationale.
 
@@ -151,7 +155,7 @@ dotnet format CmsEventProcessor.slnx --verify-no-changes --no-restore
 dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
 ```
 
-Unit tests cover account generation, hashing, safe file updates, configuration validation, startup snapshots, and identity contract/result boundaries. HTTP integration tests run the actual middleware with isolated credentials and test-only routes, covering scheme/role boundaries, malformed headers, transport security, response/log privacy, missing configuration, and credential rotation after restart. SQL integration tests will arrive with persistence.
+Domain unit tests cover ordering/publication/deletion decisions, semantic JSON content comparison, immutable state, and local overrides. Identity unit tests cover account generation, hashing, safe file updates, configuration validation, startup snapshots, and contract/result boundaries. HTTP integration tests run the actual middleware with isolated credentials and test-only routes, covering scheme/role boundaries, malformed headers, transport security, response/log privacy, missing configuration, and credential rotation after restart. SQL integration tests will arrive with persistence.
 
 Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and tests on Windows and Linux, then builds the container. Hosted CI results are available only after the branch is published.
 
