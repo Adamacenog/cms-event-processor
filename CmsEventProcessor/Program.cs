@@ -1,6 +1,9 @@
 using System.Net;
+using CmsEventProcessor.Api;
 using CmsEventProcessor.Api.Authentication;
 using CmsEventProcessor.Api.Authentication.Options;
+using CmsEventProcessor.Api.Cms.Services;
+using CmsEventProcessor.Api.Documentation;
 using CmsEventProcessor.Api.ErrorHandling;
 using CmsEventProcessor.Api.Provisioning;
 using CmsEventProcessor.Application.Identity.Contracts;
@@ -47,7 +50,16 @@ public partial class Program
         builder.Services.AddIdentityInfrastructure();
         builder.Services.AddSqlPersistence();
         builder.Services.AddConfiguredAuthentication();
-        builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
+        builder.Services.AddSingleton<WebhookRequestReader>();
+        builder.Services.AddOpenApi(options =>
+        {
+            options.ShouldInclude = description => description.RelativePath == "cms/events";
+            options.AddDocumentTransformer<CmsOpenApiTransformer>();
+            options.AddSchemaTransformer<CmsEventSchemaTransformer>();
+        });
+        builder.Services.AddControllers()
+            .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new ApiControllerFeatureProvider()))
+            .ConfigureApiBehaviorOptions(options =>
         {
             options.InvalidModelStateResponseFactory = context =>
             {
@@ -95,6 +107,7 @@ public partial class Program
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapOpenApi().RequireAuthorization(AccessPolicies.Cms);
         await app.RunAsync();
         return 0;
     }

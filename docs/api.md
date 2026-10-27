@@ -1,6 +1,6 @@
 # API contract
 
-**Status: approved API design; none of these routes is implemented yet.** OpenAPI and executable Postman examples will be added with the endpoints and verified before release.
+**Status: `POST /cms/events` and authenticated `GET /openapi/v1.json` are implemented.** Consumer and health routes below remain approved design. The [webhook guide](webhook.md) describes the implementation; the [Postman collection](postman/README.md) exercises ingestion. Rate limiting is planned operational work and is not active yet.
 
 ## Common behavior
 
@@ -38,13 +38,13 @@ The body is a JSON array of **1–100 events**, with a maximum request-body size
 | --- | --- |
 | `type` | Required string. Recognize `publish`, `unPublish`, and `delete` case-insensitively; normalize internally. Other types are rejected. |
 | `id` | Required string, 1–128 characters; no leading/trailing whitespace or control characters. Preserve its value and case; do not silently trim or normalize it. |
-| `timestamp` | Required ISO 8601 timestamp with explicit `Z` or offset; normalize to UTC for comparison. |
+| `timestamp` | Required ISO 8601 extended timestamp with seconds, uppercase `T`, explicit `Z` or `±HH:mm` offset, and zero to seven fractional digits; normalize to UTC for comparison. Greater precision is rejected rather than truncated. |
 | `version` | Required positive 64-bit integer for publish/unpublish. Optional on delete; if supplied, validate it but do not use it to order deletion. |
 | `payload` | Required JSON object for publish/unpublish. Optional on delete; if supplied, validate it as an object but do not copy it into deletion metadata. Arbitrary valid content properties are allowed. |
 
-Reject malformed JSON and duplicate property names, including in nested payload objects. Reject unknown envelope properties so misspelled fields are visible to the sender; this does not restrict arbitrary fields inside `payload`. Preserve valid content values instead of applying HTML stripping or lossy transformations.
+The request must use UTF-8 JSON without compression. Reject malformed UTF-8/JSON, invalid Unicode escapes, and duplicate property names, including in nested payload objects. Envelope names are case-sensitive. Reject unknown envelope properties so misspelled fields are visible to the sender; this does not restrict arbitrary fields inside `payload`. Optional delete fields may be omitted; explicit null values are invalid. Preserve valid content values instead of applying HTML stripping or lossy transformations.
 
-An optional `Idempotency-Key` header is a nonblank string of at most 128 characters, scoped to the authenticated CMS principal. Store its SHA-256 body hash and successful response metadata in the same transaction as entity changes:
+An optional single `Idempotency-Key` header is a nonblank string of at most 128 characters, without control characters and with valid Unicode, scoped to the authenticated CMS principal. Repeated header values are rejected. Store its SHA-256 body hash and successful response metadata in the same transaction as entity changes:
 
 - Same unexpired key and identical request bytes: return the original `200` result, including the batch ID and outcomes, without reapplying events.
 - Same unexpired key and different bytes, including different whitespace: return `409`.
@@ -111,12 +111,30 @@ The batch is atomic. A same-version payload conflict returns Problem Details wit
 | `409` | Same-version payload conflict, or unexpired idempotency key reused for a different body |
 | `413` | Request body exceeds the limit |
 | `415` | Unsupported content type |
-| `429` | Request/authentication rate limit exceeded |
+| `429` | Reserved for planned request/authentication rate limiting; not currently emitted |
 | `503` | Transient database failure, lock unavailability, or processing deadline exceeded; retry with the same key/body |
 
 Use a configurable processing deadline, default 30 seconds, covering lock acquisition and database operations through commit. Propagate request cancellation; roll back uncommitted work. A timeout/disconnect around commit can leave the caller uncertain, so neither a missing response nor a `503` proves rollback when commit acknowledgment was lost. Retry with the same key and identical body to recover a committed result safely. The service has no automatic transaction retry loop or pending work to resume after restart.
 
 Return deadline failures as `503` with safe `errorCode: processing_timeout` when the connection still permits a response. Never echo submitted payloads, credentials, stack traces, or SQL errors. After a successful response, consumers can query the primary database immediately, subject to subsequent concurrent mutations; no processing poll or sleep is needed.
+
+Other processing `503` codes are `storage_unavailable` (including lock failure) and `commit_unknown` (commit acknowledgment not confirmed). These responses include `Retry-After: 1`; retry remains the caller's choice. No 503 around commit proves rollback. A canceled/disconnected caller may receive no response. Reading/validating the bounded body precedes the processing deadline, which starts when the SQL attempt begins.
+
+Example validation response, with fixed field names and no submitted values:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Request validation failed.",
+  "status": 400,
+  "traceId": "example-trace",
+  "errors": { "[0].version": ["Supply a positive 64-bit integer; only delete may omit it."] }
+}
+```
+
+## GET /openapi/v1.json
+
+Implemented generated OpenAPI for the ingestion action and its actual input/output DTOs. CMS Basic authentication is required; missing/invalid credentials or consumer credentials receive `401`. Successful responses use `Cache-Control: no-store`. The document excludes test controllers and future routes. Download/import it into an API client; no interactive documentation UI is bundled. Its conditional envelope schema covers publish/unpublish versus delete; byte/depth limits, duplicate-name checks, and exact replay semantics are described alongside the schema because structural JSON Schema alone cannot express them all.
 
 ## GET /api/entities
 

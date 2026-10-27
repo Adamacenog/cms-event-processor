@@ -1,0 +1,361 @@
+{
+  "info": {
+    "name": "CMS Event Processor - ingestion",
+    "description": "Synthetic step-05 ingestion walkthrough. Run requests in order. The first request creates fresh IDs/keys; credentials belong only in a private environment. Consumer queries follow in step 06.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{cmsUsername}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{cmsPassword}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "entityId",
+      "value": ""
+    },
+    {
+      "key": "batchKey",
+      "value": ""
+    },
+    {
+      "key": "batchBody",
+      "value": ""
+    },
+    {
+      "key": "committedBatchId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Commit publish and unseen-revision unpublish",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{batchKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cms/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cms",
+            "events"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{batchBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Batch committed\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"Final decisions preserve input order\", () => pm.expect(result.outcomes.map(x => x.reasonCode)).to.eql([\"published\",\"unpublished\"]));",
+              "pm.collectionVariables.set(\"committedBatchId\", result.batchId);"
+            ]
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const id = \"postman-\" + pm.variables.replaceIn(\"{{$guid}}\");",
+              "pm.collectionVariables.set(\"entityId\", id);",
+              "pm.collectionVariables.set(\"batchKey\", pm.variables.replaceIn(\"{{$guid}}\"));",
+              "pm.collectionVariables.set(\"batchBody\", JSON.stringify([{type:\"publish\",id,version:1,timestamp:\"2026-01-01T12:00:00Z\",payload:{title:\"Synthetic example\"}},{type:\"unPublish\",id,version:2,timestamp:\"2026-01-01T12:01:00Z\",payload:{title:\"Synthetic unpublished revision\"}}]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Replay the original exact keyed body",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{batchKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cms/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cms",
+            "events"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{batchBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Original successful result replayed\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().batchId).to.eql(pm.collectionVariables.get(\"committedBatchId\")); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Reject the same key with different whitespace",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{batchKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cms/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cms",
+            "events"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{batchBody}} ",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Exact-byte key conflict\", () => { pm.response.to.have.status(409); pm.expect(pm.response.json().errorCode).to.eql(\"idempotency_key_conflict\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Reject invalid input before processing",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cms/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cms",
+            "events"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "[{\"type\":\"publish\",\"id\":\"{{entityId}}\",\"version\":0,\"timestamp\":\"2026-01-01T12:00:00Z\",\"payload\":{}}]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Safe field validation\", () => { pm.response.to.have.status(400); pm.expect(pm.response.json().errors).to.have.property(\"[0].version\"); pm.expect(pm.response.json()).to.have.property(\"traceId\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Unkeyed delivery observes current domain state",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cms/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cms",
+            "events"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{batchBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Stale and duplicate events are skipped\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().outcomes.map(x => x.reasonCode)).to.eql([\"stale\",\"duplicate\"]); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Delete the synthetic entity",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cms/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cms",
+            "events"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "[{\"type\":\"delete\",\"id\":\"{{entityId}}\",\"timestamp\":\"2026-01-01T12:02:00Z\"}]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Deletion committed\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().outcomes[0].reasonCode).to.eql(\"deleted\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Inspect authenticated generated OpenAPI",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/openapi/v1.json",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "openapi",
+            "v1.json"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Confidential responses are not cached\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\"));",
+              "pm.test(\"Implemented webhook is documented\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().paths).to.have.property(\"/cms/events\"); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
