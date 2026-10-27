@@ -23,7 +23,7 @@ Configure both Persistence:WriteConnectionString and Persistence:ReadConnectionS
 From the repository root:
 
 ```sh
-docker build --tag cms-event-processor:foundation .
+docker build --tag cms-event-processor:local .
 ```
 
 The image uses the pinned .NET SDK/runtime, locked dependencies, and a non-root runtime user. It includes neither test controllers nor local credential files. Starting it without account configuration intentionally fails validation.
@@ -41,7 +41,7 @@ Kestrel__Certificates__Default__Password=<certificate-password>
 For the supplied SQL Compose service, join its network with --network cms-event-processor_default and use Server=sql,1433 in both private connections. For an external SQL server, use its address and omit the Compose network option. Replace both path placeholders with absolute host paths, and keep the environment file private:
 
 ```sh
-docker run --rm --network cms-event-processor_default --publish 127.0.0.1:8443:8443 --env-file .secrets/container.env --mount type=bind,source=<absolute-account-file>,target=/app/appsettings.Local.json,readonly --mount type=bind,source=<absolute-certificate-file>,target=/run/secrets/https.pfx,readonly cms-event-processor:foundation
+docker run --rm --network cms-event-processor_default --publish 127.0.0.1:8443:8443 --env-file .secrets/container.env --mount type=bind,source=<absolute-account-file>,target=/app/appsettings.Local.json,readonly --mount type=bind,source=<absolute-certificate-file>,target=/run/secrets/https.pfx,readonly cms-event-processor:local
 ```
 
 On Linux, owner-only host files may require running the container with the host user's UID/GID using `--user "$(id -u):$(id -g)" --env HOME=/tmp` so it can read the mounts and has a writable home for framework services. Preserve restrictive permissions rather than making secrets world-readable. Windows/macOS bind-mount behavior depends on Docker Desktop's file-sharing configuration.
@@ -54,4 +54,4 @@ The [operations guide](operations.md) documents the protected probes, validated 
 
 ## Verification boundaries
 
-Unit and HTTP foundation suites do not require SQL Server or Docker when filtered with Category!=Sql. The HTTP suite validates the actual pipeline through `WebApplicationFactory`, while only the test assembly supplies probe controllers. These checks alone do not establish SQL transaction behavior. The SQL cases require Docker or CMS_TEST_SQL_CONNECTION and separately verify transactions, migrations, and failure behavior, as documented in the [SQL test guide](persistence.md#test-execution-and-evidence). A working hosted deployment remains a later deliverable.
+Unit and HTTP foundation suites do not require SQL Server or Docker when filtered with "Category!=Sql&Category!=Acceptance". The HTTP suite validates the actual pipeline through `WebApplicationFactory`, while only the test assembly supplies probe controllers. These checks alone do not establish SQL transaction behavior. The SQL cases require Docker or CMS_TEST_SQL_CONNECTION and separately verify transactions, migrations, and failure behavior, as documented in the [SQL test guide](persistence.md#test-execution-and-evidence). The separate [published-host acceptance suite](verification.md#what-the-automated-collection-proves) runs the real executable and Postman collection. [Cloud deployment](deployment.md) remains an optional proposal; it is not claimed as tested.

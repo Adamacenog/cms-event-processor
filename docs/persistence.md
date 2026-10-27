@@ -38,7 +38,7 @@ The global lock is shared with EntityDisabler. A local disable preserves source 
 
 A conflict, cancellation, or precommit failure rolls the transaction back. Opportunistic cleanup rolls back too. Unkeyed requests create no response-history row. Fast unexpired replays end a read-only transaction without domain changes or expiry cleanup.
 
-Coordination uses [transaction-owned SQL application locks](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), with success codes checked explicitly. Global write serialization is an explicit assessment-scale throughput tradeoff. The reader index and future bounded projections support reads; higher write concurrency needs measured evidence before redesign.
+Coordination uses [transaction-owned SQL application locks](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), with success codes checked explicitly. Global write serialization is an explicit assessment-scale throughput tradeoff. The reader index and bounded projections support reads; higher write concurrency needs measured evidence before redesign.
 
 ## Failure and deadline behavior
 
@@ -116,7 +116,7 @@ The default network is cms-event-processor_default. Add --network cms-event-proc
 The integration project tags real database cases Category=Sql. By default, one Testcontainers SQL instance is started and each case creates/migrates/deletes a unique cms_test_<guid> catalog. Docker failures fail these tests rather than silently skipping them.
 
 ```sh
-dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql"
+dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql&Category!=Acceptance"
 dotnet test CmsEventProcessor.IntegrationTests/CmsEventProcessor.IntegrationTests.csproj --configuration Release --no-build --no-restore --filter "Category=Sql"
 ```
 

@@ -18,6 +18,9 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [Consumer implementation](docs/consumers.md) | Visibility, pagination, local disabling, read/write separation, and SQL evidence |
 | [Operations and troubleshooting](docs/operations.md) | Protected health, rate limits, sanitized telemetry, shutdown, and recovery |
 | [Measured workload](docs/performance.md) | Reproducible synthetic workload and actual request/transaction/lock measurements |
+| [Verification and evidence](docs/verification.md) | Suite commands, published-host Postman acceptance, CI, and assessment coverage |
+| [Deployment and temporary demo](docs/deployment.md) | Local/tunnel setup, Azure alternatives, transport and cost assumptions |
+| [Release procedure](docs/release.md) | Review, source tagging, image identity, and publication steps |
 | [Postman walkthrough](docs/postman/README.md) | Executable CMS/reader/admin scenarios with empty shared credentials |
 | [Authentication and credential setup](#authentication-and-credential-setup) | Account provisioning, configuration, and credential rotation |
 | [Development and container setup](docs/development.md) | Configuration precedence, deployment secrets, and HTTPS container execution |
@@ -151,55 +154,86 @@ See the [access decision](docs/decisions/003-access-and-read-write-boundaries.md
 
 ## Running locally
 
-Install the .NET SDK pinned in [global.json](global.json), currently **10.0.301**. Unit/HTTP foundation tests need no database engine. SQL integration tests use Docker or an explicitly configured test server. Follow the [SQL setup and migration guide](docs/persistence.md#local-sql-setup) for processing storage.
+This quickstart takes a few operator steps once prerequisites are installed; SDK/image downloads and first SQL startup can take longer. Install the exact **.NET SDK 10.0.301** from [global.json](global.json) and Docker with x86-64 Linux containers, or use a compatible external SQL Server. On Apple Silicon, run the API natively against external SQL; see the [SQL guide](docs/persistence.md#local-sql-setup). Postman is optional for the walkthrough; Node and Python are unnecessary for normal API execution.
 
-From the repository root:
+1. Clone this repository and work from its root:
 
 ```sh
+git clone https://github.com/Adamacenog/cms-event-processor.git
+cd cms-event-processor
+```
+
+Copy `.env.example` to the ignored `.env` (`Copy-Item .env.example .env` in PowerShell, or `cp .env.example .env` in a POSIX shell). Edit `.env` privately to set a complex `SQL_SA_PASSWORD`. Change `SQL_PORT` if 1433 is occupied.
+2. Start SQL and build the application:
+
+```sh
+docker compose up --detach --wait sql
 dotnet restore CmsEventProcessor.slnx --locked-mode
 dotnet tool restore
 dotnet build CmsEventProcessor.slnx --configuration Release --no-restore
-cd CmsEventProcessor
-dotnet run --configuration Release --no-build --no-launch-profile -- accounts init --file appsettings.Local.json
 ```
 
-Before starting the web host, configure both SQL connections in the ignored local configuration, preserving the generated Authentication section, and apply the [explicit migration command](docs/persistence.md#explicit-migration-command). Account initialization itself needs no SQL connection.
-
-After that configuration, run from the current CmsEventProcessor directory:
+3. Generate the three accounts and save their displayed passwords securely:
 
 ```sh
-dotnet tool run dotnet-ef -- database update --project . --context WriteContext --configuration Release --no-build
-dotnet run --configuration Release --no-build --launch-profile local
+dotnet run --project CmsEventProcessor --configuration Release --no-build --no-launch-profile -- accounts init --file appsettings.Local.json
 ```
 
-Save the three generated passwords securely when setup displays them. The local profile listens on `http://127.0.0.1:5080`. Missing or invalid account configuration prevents startup. An unauthenticated request to `/` receives `401`; a valid consumer identity receives `404` because that root route is not mapped. Submit the [synthetic batch example](docs/examples/cms-batch.json) to `POST /cms/events` using CMS Basic credentials and `Content-Type: application/json`, or run the Postman walkthrough. Integration tests add protected probe controllers from their own assembly; those routes are never shipped with the application.
+`dotnet run --project` executes inside the project directory, so this creates `CmsEventProcessor/appsettings.Local.json`.
 
-Stop the host before editing account configuration. From `CmsEventProcessor`, use either explicit operation and then restart:
+4. Edit that ignored JSON file, preserving its generated `Authentication` section. Add a sibling `Persistence` object with `WriteConnectionString` and `ReadConnectionString`, both initially targeting your same SQL primary. For Compose, use the following shape with the private password and selected port. Escape connection-string/JSON values correctly; [the configuration example](docs/examples/persistence.example.json) shows the JSON structure.
+
+```text
+Server=127.0.0.1,1433;Database=CmsEventProcessor;User Id=sa;Password=<private SQL password>;Encrypt=True;TrustServerCertificate=True;ConnectRetryCount=0
+```
+
+5. Apply migrations explicitly, then start the API:
 
 ```sh
-dotnet run --configuration Release --no-build --no-launch-profile -- accounts add --file appsettings.Local.json --kind Reader
-dotnet run --configuration Release --no-build --no-launch-profile -- accounts rotate --file appsettings.Local.json --username <existing-username>
+dotnet tool run dotnet-ef -- database update --project CmsEventProcessor --context WriteContext --configuration Release --no-build
+dotnet run --project CmsEventProcessor --configuration Release --no-build --launch-profile local
 ```
 
-Replace `<existing-username>` before running the rotation command. Only the newly generated password is displayed. `--kind` accepts `Cms`, `Reader`, or `Admin`.
+The local profile serves `http://127.0.0.1:5080`; HTTP is permitted only from a loopback socket peer. External access requires HTTPS. Startup validates accounts/connections without creating accounts or migrating storage. The local `sa` login and trusted development certificate are setup conveniences; [deployment guidance](docs/deployment.md) separates runtime/migration credentials and trusted TLS.
 
-The [configuration example](docs/examples/authentication.example.json) documents the hash-only file shape; use setup rather than copying placeholder hashes. Local credential files are excluded from both Git and publish output.
+Import the [Postman collection and local template](docs/postman/README.md), fill the three credential pairs privately, and run its 29 requests in order. The first request creates synthetic IDs; every successful ingestion result is final, and consumer checks run immediately. Alternatively, submit [the synthetic batch](docs/examples/cms-batch.json) with CMS Basic credentials. Anonymous consumer requests receive `401`. `/` has no application route; use the documented business, health, or OpenAPI routes.
+
+Stop the API before editing account configuration. From the repository root, add or rotate explicitly and restart:
+
+```sh
+dotnet run --project CmsEventProcessor --configuration Release --no-build --no-launch-profile -- accounts add --file appsettings.Local.json --kind Reader
+dotnet run --project CmsEventProcessor --configuration Release --no-build --no-launch-profile -- accounts rotate --file appsettings.Local.json --username <existing-username>
+```
+
+Replace `<existing-username>` before rotation. `--kind` accepts `Cms`, `Reader`, or `Admin`; only newly generated passwords are displayed. Initialization refuses an existing file. Local credential files are excluded from Git, publish output, and container context. Stop SQL with `docker compose stop sql`; its volume retains development data.
+
+For Linux packaging, follow [container HTTPS setup](docs/development.md#container-build-and-https-execution). For a temporary evaluator URL, follow [the optional demo guide](docs/deployment.md#temporary-cloudflare-demonstration).
 
 ## Tests and code conventions
 
-Run from the repository root:
+From the repository root after the Release build:
 
 ```sh
 dotnet format CmsEventProcessor.slnx --verify-no-changes --no-restore
-dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
+dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql&Category!=Acceptance"
+dotnet test CmsEventProcessor.IntegrationTests --configuration Release --no-build --no-restore --filter "Category=Sql"
 ```
+
+The first test command needs no SQL or Node. SQL cases need Docker or a private `CMS_TEST_SQL_CONNECTION` to a dedicated test server. Optional automated Postman acceptance uses Node 24, locked Newman, a published real API, and its own migrated SQL catalog:
+
+```sh
+npm ci --prefix scripts/acceptance --ignore-scripts
+dotnet test CmsEventProcessor.IntegrationTests --configuration Release --no-build --no-restore --filter "Category=Acceptance"
+```
+
+With all prerequisites, omit the filter to run every suite. See [verification](docs/verification.md) for the suite matrix, isolated credentials/cleanup, evidence boundaries, and acceptance-tool dependency advisories. Python is used only by the separate optional [load exercise](docs/operations.md#reproduce-the-synthetic-load-exercise).
 
 Domain unit tests cover ordering/publication/deletion decisions, semantic JSON content comparison, immutable state, and local overrides. Identity unit tests cover account generation, hashing, safe file updates, configuration validation, startup snapshots, and contract/result boundaries. HTTP integration tests run the actual middleware with isolated credentials and test-only routes, covering scheme/role boundaries, malformed headers, transport security, response/log privacy, missing configuration, and credential rotation after restart. Real SQL tests verify atomic processing, replay, retention, concurrency, cancellation, failure boundaries, and migrations; see the [SQL test guide](docs/persistence.md#test-execution-and-evidence).
 
-Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests before the application container build. Hosted CI results are available only after the branch is published.
+Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests and the published-host Postman collection before the application container build. Exact revision results are linked in the PR and Actions. Test-only probe controllers are excluded from the shipped application.
 
 The webhook, consumer endpoints, and Postman business walkthrough are available. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers can configure a remote compatible SQL Server as described in the SQL guide. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
 
 ## Delivery
 
-The final submission will include a verified fresh-clone walkthrough and a release tag. Paid hosting is not required: local Docker is the baseline, with a free temporary tunnel as the optional live demo. Azure remains a documented deployment alternative.
+The [verification guide](docs/verification.md) maps assessment requirements to executable evidence. Native/container setup and the optional temporary demo are documented; Azure options are proposals with transport and cost prerequisites. Source tags and image publication follow the [reviewed release procedure](docs/release.md). No paid hosting is required or provisioned by this repository.

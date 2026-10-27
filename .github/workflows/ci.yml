@@ -36,10 +36,24 @@ jobs:
       - name: Release build
         run: dotnet build CmsEventProcessor.slnx --configuration Release --no-restore
       - name: Unit and HTTP integration tests
-        run: dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql" --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
+        run: dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql&Category!=Acceptance" --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
       - name: Real SQL Server integration tests
         if: runner.os == 'Linux'
         run: dotnet test CmsEventProcessor.IntegrationTests/CmsEventProcessor.IntegrationTests.csproj --configuration Release --no-build --no-restore --filter "Category=Sql" --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: runner.os == 'Linux'
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Restore locked acceptance runner
+        if: runner.os == 'Linux'
+        run: npm ci --prefix scripts/acceptance --ignore-scripts
+      - name: Audit acceptance runner for critical advisories
+        if: runner.os == 'Linux'
+        run: npm audit --prefix scripts/acceptance --audit-level=critical
+      - name: Published API Postman acceptance on isolated SQL
+        if: runner.os == 'Linux'
+        run: dotnet test CmsEventProcessor.IntegrationTests/CmsEventProcessor.IntegrationTests.csproj --configuration Release --no-build --no-restore --filter "Category=Acceptance" --logger trx --results-directory artifacts/test-results
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
