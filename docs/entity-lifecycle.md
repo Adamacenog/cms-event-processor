@@ -26,9 +26,9 @@ Models owning confidential content are classes without generated record formatti
 
 Call EntityLifecycle.Apply with a validated event and either its current snapshot, its marker, or neither. Applied results carry replacement state. Skipped/conflict results preserve the previous state object. Inputs are immutable, so evaluating a later event does not change a previously observed snapshot.
 
-A caller must use the returned state explicitly. The future application processor will persist it inside the request's transaction. An applied domain result alone is not durable success, and a conflict result does not independently roll back earlier events in a batch.
+A caller must use the returned state explicitly. The application processor persists it inside the request's transaction. An applied domain result alone is not durable success, and a conflict result does not independently roll back earlier events in a batch.
 
-Snapshot.Disable returns a snapshot with only AdminDisabled changed, or the same object if already disabled. It cannot change source content, version, time, or publication. Reader visibility is CmsPublished && !AdminDisabled; administrator endpoint authorization and listing are still future API work.
+Snapshot.Disable returns a snapshot with only AdminDisabled changed, or the same object if already disabled. It cannot change source content, version, time, or publication. Reader visibility is CmsPublished && !AdminDisabled; administrator endpoint authorization and listing are implemented in the [consumer API](consumers.md).
 
 ```mermaid
 stateDiagram-v2

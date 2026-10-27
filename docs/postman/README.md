@@ -6,10 +6,6 @@ Select a private environment, fill cmsUsername/cmsPassword, readerUsername/reade
 
 Run all 29 requests in order using Collection Runner. The first request creates fresh synthetic IDs/keys and exact JSON bytes for that run. Assertions verify committed outcomes, stable keyed replay, a whitespace/body-key conflict, validation, unkeyed stale/duplicate decisions, deletion, authenticated OpenAPI, and no-store responses. No status polling or processing sleeps are used. The run deletes its synthetic snapshot; content-free deletion/replay metadata follows the documented retention rules. Consumer assertions cover immediate reads, unseen unpublishes, role visibility, republish, persistent local override, reader forbid, hard deletion, stale replay, and bounded listings. Each request uses the matching private role credentials. The final two administrator requests check minimal live/ready status JSON and no-store.
 
-For command-line execution with Newman 6.2.2 installed:
+For a temporary HTTPS demonstration, derive a private environment from [the demo template](demo.template.postman_environment.json) and follow [setup/teardown](../deployment.md#temporary-cloudflare-demonstration). Both shared templates keep credentials empty. Run the collection from the Postman application against your configured native or container instance.
 
-```sh
-newman run docs/postman/cms-events.postman_collection.json --environment docs/postman/local.private.postman_environment.json
-```
-
-The private environment must be populated locally. Do not put passwords in CLI arguments, committed files, or captured output. A successful run checks only the instance it targeted; it does not establish production capacity or exhaustive operational recovery. CI currently verifies the equivalent HTTP/SQL contracts through .NET tests; isolated Newman execution in CI is planned for the final acceptance walkthrough.
+The [.NET verification suites](../verification.md#test-commands) cover unit rules, HTTP behavior, and real SQL integration. A successful manual collection run checks its target instance; it does not establish production capacity, cloud availability, or exhaustive recovery.

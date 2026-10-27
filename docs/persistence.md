@@ -38,7 +38,7 @@ The global lock is shared with EntityDisabler. A local disable preserves source 
 
 A conflict, cancellation, or precommit failure rolls the transaction back. Opportunistic cleanup rolls back too. Unkeyed requests create no response-history row. Fast unexpired replays end a read-only transaction without domain changes or expiry cleanup.
 
-Coordination uses [transaction-owned SQL application locks](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), with success codes checked explicitly. Global write serialization is an explicit assessment-scale throughput tradeoff. The reader index and future bounded projections support reads; higher write concurrency needs measured evidence before redesign.
+Coordination uses [transaction-owned SQL application locks](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-getapplock-transact-sql), with success codes checked explicitly. Global write serialization is an explicit assessment-scale throughput tradeoff. The reader index and bounded projections support reads; higher write concurrency needs measured evidence before redesign.
 
 ## Failure and deadline behavior
 

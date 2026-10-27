@@ -183,7 +183,7 @@ Validate structure and limits, reject ambiguous JSON, preserve valid CMS data, a
 
 Emit structured event/batch outcomes and safe error codes from the first processing implementation. Log applied outcomes only after confirmed commit; distinguish rolled-back or uncertain results from success. Do not log request bodies, payloads, passwords, authorization headers, or EF parameter values. Use batch IDs and keyed hashes of entity identifiers when correlation is necessary; avoid high-cardinality identifiers in metric labels. Custom OpenTelemetry records fixed-label request/transaction duration, throughput, SQL-reported lock contention, and failures, with optional HTTP/protobuf export. Incoming trace context/baggage and raw values are excluded. Protected readiness checks both database connections, writer migration history, and required columns; liveness is independent of SQL. A process-local actual-peer fixed-window limiter runs before authentication. See [configuration, privacy, and recovery evidence](operations.md) and the [measured workload](performance.md).
 
-## Local delivery and future deployment
+## Local delivery and deployment alternatives
 
 Provide native .NET and Docker Compose execution with an explicit migration step. Keep migration privileges separate from routine runtime privileges when deploying beyond local development. SQL Server 2022 Developer is for development/test use, not a production licensing choice.
 
@@ -191,4 +191,4 @@ SQL Server containers require an x86-64 Linux environment. Apple Silicon reviewe
 
 The agreed live demo is local Docker plus an optional temporary Cloudflare Quick Tunnel, within a US$5 ceiling and without provisioning paid hosting. It needs a running computer and has a temporary URL with no uptime guarantee. Use synthetic content and share credentials separately. See [Quick Tunnel documentation](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
 
-Document Azure Container Apps plus Azure SQL Database as a future managed option. The design has no continuous queue polling or worker-driven minimum-replica requirement. Evaluate cold-start latency and database availability when selecting hosting settings; do not promise free hosting or a guaranteed cost ceiling. Service Bus, Redis, physical read replicas, and background processing remain future alternatives that require a separate agreed design change.
+The [deployment guide](deployment.md) describes Azure VM/Container Apps plus Azure SQL alternatives, including the current transport/probe prerequisites. The design has no continuous queue polling or worker-driven minimum-replica requirement. Evaluate cold-start latency and database availability when selecting hosting settings; do not promise free hosting or a guaranteed cost ceiling. Service Bus, Redis, physical read replicas, and background processing remain future alternatives that require a separate agreed design change.
