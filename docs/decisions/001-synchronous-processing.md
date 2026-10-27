@@ -1,4 +1,4 @@
-# ADR 001 â€” Synchronous transactional batch processing
+# ADR 001 - Synchronous transactional batch processing
 
 - **Context:** the assessment permits synchronous or asynchronous processing and prioritizes correctness, clarity, and a straightforward local setup. Bounded request sizes make synchronous transactional processing a practical choice.
 
