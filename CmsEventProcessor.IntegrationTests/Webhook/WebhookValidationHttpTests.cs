@@ -74,7 +74,7 @@ public sealed class WebhookValidationHttpTests
     }
 
     /// <summary>
-    /// Missing, malformed, unknown, incorrect-password, and consumer credentials cannot reach CMS ingestion or its documentation.
+    /// Missing, malformed, unknown, incorrect-password, and consumer credentials cannot reach CMS ingestion.
     /// </summary>
     /// <param name="kind">The credential scenario.</param>
     /// <param name="route">The production ingestion or OpenAPI route.</param>
@@ -86,8 +86,6 @@ public sealed class WebhookValidationHttpTests
     [InlineData("wrong", "/cms/events")]
     [InlineData("reader", "/cms/events")]
     [InlineData("admin", "/cms/events")]
-    [InlineData("missing", "/openapi/v1.json")]
-    [InlineData("reader", "/openapi/v1.json")]
     public async Task CmsAuthenticationPrecedesInputValidation(string kind, string route)
     {
         await using var factory = new FoundationFactory { IncludeTestControllers = false };

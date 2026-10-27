@@ -2,7 +2,7 @@
 
 A .NET service for receiving CMS events, maintaining the latest entity state, and exposing confidential content through an authenticated API.
 
-**Status: authenticated CMS webhook implemented with transactional SQL processing.** `POST /cms/events` validates whole batches and returns final outcomes after commit, with optional scoped replay. Account provisioning, safe errors, generated OpenAPI, an executable Postman ingestion collection, unit/HTTP/SQL tests, CI, and container delivery are present. Consumer and health endpoints remain pending.
+**Status: CMS ingestion, role-aware consumer reads, and administrator disabling are implemented.** Whole batches commit before success, with optional scoped replay. Consumer reads use bounded no-tracking SQL projections and cursor pagination; local overrides survive CMS publication. Provisioning, safe errors, OpenAPI, Postman, tests, CI, and container delivery are present. Health, telemetry, and rate limiting remain upcoming operational work.
 
 ## Start here
 
@@ -15,7 +15,8 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [SQL persistence and processing](docs/persistence.md) | Database setup, explicit migrations, transaction/replay behavior, and real SQL tests |
 | [API contract](docs/api.md) | Approved endpoint design, authentication, validation, and responses |
 | [Webhook implementation](docs/webhook.md) | Implemented request validation, error mapping, HTTP/SQL tests, and OpenAPI access |
-| [Postman ingestion walkthrough](docs/postman/README.md) | Seven executable synthetic requests and an empty-credential environment template |
+| [Consumer implementation](docs/consumers.md) | Visibility, pagination, local disabling, read/write separation, and SQL evidence |
+| [Postman walkthrough](docs/postman/README.md) | Executable CMS/reader/admin scenarios with empty shared credentials |
 | [Authentication and credential setup](#authentication-and-credential-setup) | Account provisioning, configuration, and credential rotation |
 | [Development and container setup](docs/development.md) | Configuration precedence, deployment secrets, and HTTPS container execution |
 | [Architecture decisions](docs/decisions/001-synchronous-processing.md) | Rationale and tradeoffs for the processing approach; access and lifecycle decisions are linked from the architecture |
@@ -35,12 +36,21 @@ cms-event-processor/
         Services/
         Validation/
       Documentation/
+      Entities/
+        Controllers/
+        Dtos/
+        Mappings/
+        Validation/
       Authentication/
         Handlers/
         Options/
       ErrorHandling/
       Provisioning/
     Application/
+      Entities/
+        Contracts/
+        Exceptions/
+        Models/
       Processing/
       Identity/
         Contracts/
@@ -95,15 +105,15 @@ The design prioritizes the difficult cases: unpublished revisions that were neve
 
 ## API availability
 
-The [API contract](docs/api.md) contains behavior and examples. Ingestion and generated OpenAPI are implemented; other routes remain approved design.
+The [API contract](docs/api.md) contains behavior and examples. Business endpoints and generated OpenAPI are implemented; health routes remain approved design.
 
 | Method | Route | Access | Purpose | Status |
 | --- | --- | --- | --- | --- |
 | POST | `/cms/events` | CMS | Commit a batch and return final outcomes | Implemented |
-| GET | `/openapi/v1.json` | CMS | Download generated documentation of implemented ingestion | Implemented |
-| GET | `/api/entities` | Reader or administrator | List entities with role-based visibility | Planned |
-| GET | `/api/entities/{id}` | Reader or administrator | Read an entity with the same visibility rules | Planned |
-| PUT | `/api/entities/{id}/disable` | Administrator | Apply a persistent local disable | Planned |
+| GET | `/openapi/v1.json` | Any configured account | Download generated documentation with operation-specific security | Implemented |
+| GET | `/api/entities` | Reader or administrator | List entities with role-based visibility | Implemented |
+| GET | `/api/entities/{id}` | Reader or administrator | Read an entity with the same visibility rules | Implemented |
+| PUT | `/api/entities/{id}/disable` | Administrator | Apply a persistent local disable | Implemented |
 | GET | `/health/live` | Administrator | Check process availability | Planned |
 | GET | `/health/ready` | Administrator | Check database access and expected schema | Planned |
 
@@ -111,7 +121,7 @@ The [API contract](docs/api.md) contains behavior and examples. Ingestion and ge
 
 Accounts are provisioned explicitly through the implemented setup command. There is no registration, login/token endpoint, separate authentication service, or user database.
 
-The setup utility creates three preconfigured accounts. Their permissions are enforced by policies, with business endpoints to follow:
+The setup utility creates three preconfigured accounts. Business permissions are enforced by policies; administrator health access remains planned:
 
 | Account | Permissions |
 | --- | --- |
@@ -125,7 +135,7 @@ At startup, the API loads and validates the configured accounts. It does not cre
 
 Every protected request sends Basic credentials; ASP.NET Core authentication verifies the password against the configured hash, and authorization policies enforce the permissions above. Roles are configured server-side. An administrator account does not grant CMS ingestion access. External requests require HTTPS because Basic Authentication only Base64-encodes credentials. Development allows HTTP only from a loopback socket peer; forwarded headers cannot bypass that restriction.
 
-In Postman, import the [ingestion collection and environment template](docs/postman/README.md), then supply the CMS username and password in a private environment. Shared templates contain no credentials. Consumer requests will be added with those endpoints.
+In Postman, import the [collection and environment template](docs/postman/README.md), then fill the generated CMS, reader, and administrator credentials privately. Shared values remain empty. The walkthrough asserts final ingestion outcomes and queries consumer state immediately.
 
 For deployment, load the same account definitions and password hashes from deployment secrets or environment-provided configuration. To add an account or rotate credentials, explicitly update the configuration and restart the application. A rotation generates and displays a new password, replaces its stored hash, and invalidates the previous password once the new configuration is loaded. There is no password-recovery endpoint; a lost password must be rotated.
 
@@ -180,7 +190,7 @@ Domain unit tests cover ordering/publication/deletion decisions, semantic JSON c
 
 Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests before the application container build. Hosted CI results are available only after the branch is published.
 
-The webhook and initial Postman ingestion walkthrough are available; consumer endpoints remain upcoming. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers can configure a remote compatible SQL Server as described in the SQL guide. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
+The webhook, consumer endpoints, and Postman business walkthrough are available. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers can configure a remote compatible SQL Server as described in the SQL guide. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
 
 ## Delivery
 

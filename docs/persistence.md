@@ -1,6 +1,6 @@
 # SQL persistence and transactional processing
 
-The application processes validated batches against real SQL Server. Direct integration tests exercise this layer, and the [implemented webhook](webhook.md) adds authenticated HTTP/SQL coverage. Consumer controllers remain subsequent work.
+The application processes validated batches against real SQL Server. Direct integration tests exercise this layer, and the [implemented webhook](webhook.md) adds authenticated HTTP/SQL coverage. [Consumer controllers](consumers.md) now expose bounded role-aware reads and coordinated administrator disabling.
 
 ## Responsibilities
 

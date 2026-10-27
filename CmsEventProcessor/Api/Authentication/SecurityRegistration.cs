@@ -40,6 +40,8 @@ internal static class SecurityRegistration
                 .RequireAuthenticatedUser().RequireClaim(AccessPolicies.KindClaim, nameof(AccountKind.Cms)).Build());
             options.AddPolicy(AccessPolicies.Admin, new AuthorizationPolicyBuilder(AccessPolicies.ConsumerScheme)
                 .RequireAuthenticatedUser().RequireRole(nameof(AccountKind.Admin)).Build());
+            options.AddPolicy(AccessPolicies.Documentation, new AuthorizationPolicyBuilder(AccessPolicies.CmsScheme, AccessPolicies.ConsumerScheme)
+                .RequireAuthenticatedUser().Build());
         });
         return services;
     }

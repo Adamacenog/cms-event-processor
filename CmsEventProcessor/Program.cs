@@ -3,6 +3,7 @@ using CmsEventProcessor.Api;
 using CmsEventProcessor.Api.Authentication;
 using CmsEventProcessor.Api.Authentication.Options;
 using CmsEventProcessor.Api.Cms.Services;
+using CmsEventProcessor.Api.Diagnostics;
 using CmsEventProcessor.Api.Documentation;
 using CmsEventProcessor.Api.ErrorHandling;
 using CmsEventProcessor.Api.Provisioning;
@@ -39,6 +40,7 @@ public partial class Program
         }
 
         var builder = WebApplication.CreateBuilder(args);
+        PrivacyLogging.Configure(builder.Logging);
         // Local hashes are optional; deployment environment variables/arguments take precedence.
         builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
         if (builder.Environment.IsDevelopment())
@@ -53,9 +55,11 @@ public partial class Program
         builder.Services.AddSingleton<WebhookRequestReader>();
         builder.Services.AddOpenApi(options =>
         {
-            options.ShouldInclude = description => description.RelativePath == "cms/events";
-            options.AddDocumentTransformer<CmsOpenApiTransformer>();
+            options.ShouldInclude = description => description.RelativePath == "cms/events" ||
+                description.RelativePath?.StartsWith("api/entities", StringComparison.Ordinal) == true;
+            options.AddDocumentTransformer<ApiOpenApiTransformer>();
             options.AddSchemaTransformer<CmsEventSchemaTransformer>();
+            options.AddSchemaTransformer<EntitySchemaTransformer>();
         });
         builder.Services.AddControllers()
             .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new ApiControllerFeatureProvider()))
@@ -107,7 +111,7 @@ public partial class Program
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
-        app.MapOpenApi().RequireAuthorization(AccessPolicies.Cms);
+        app.MapOpenApi().RequireAuthorization(AccessPolicies.Documentation);
         await app.RunAsync();
         return 0;
     }

@@ -18,7 +18,7 @@ internal sealed class CaptureLogSink(ConcurrentQueue<string> messages) : ILogger
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     /// <summary>
-    /// Enables every level so redaction tests cannot pass by filtering sensitive diagnostics.
+    /// Captures every level allowed by production privacy filters without adding sink-specific exclusions.
     /// </summary>
     /// <param name="logLevel">The requested log level; every level is enabled for privacy checks.</param>
     /// <returns>Always true so filtering cannot conceal sensitive output from assertions.</returns>

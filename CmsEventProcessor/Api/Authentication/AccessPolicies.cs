@@ -10,5 +10,6 @@ internal static class AccessPolicies
     public const string Cms = "Cms";
     public const string Consumer = "Consumer";
     public const string Admin = "Admin";
+    public const string Documentation = "Documentation";
     public const string KindClaim = "account_kind";
 }

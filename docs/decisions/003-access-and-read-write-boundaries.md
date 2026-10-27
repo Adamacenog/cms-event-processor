@@ -24,6 +24,10 @@ Use separate EF read and write contexts. The read context defaults to no trackin
 - No generic repository layer is needed to disguise EF query capabilities.
 - A read-only SQL login can strengthen permissions, but it is not necessary to demonstrate the separate context behavior locally.
 
+## Implementation
+
+The [consumer guide](../consumers.md) describes implemented visibility, bounded binary keyset projections, independent read contexts, and coordinated disabling. The shared generated reference accepts any configured identity while each business operation retains its scheme/role policy. Both connections target the same primary for immediate reads; a lagging replica is not claimed. Raw URL/action diagnostic categories are suppressed because IDs/cursors are confidential.
+
 ## Required evidence
 
 Test valid/invalid credentials, malformed headers, missing authentication, wrong-role access, CMS-scoped idempotency keys, every visibility combination, hidden lookups, read-context save rejection, bounded pagination, and admin/ingestion races. Verify that confidential payloads and credentials never appear in logs.
