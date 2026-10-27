@@ -1,3 +1,4 @@
+using CmsEventProcessor.Application.Entities.Contracts;
 using CmsEventProcessor.Application.Processing.Contracts;
 using CmsEventProcessor.Application.Processing.Options;
 using CmsEventProcessor.Application.Processing.Services;
@@ -47,6 +48,7 @@ internal static class PersistenceRegistration
         services.AddSingleton<IMutationTransactionFactory, SqlMutationTransactionFactory>();
         services.AddSingleton<BatchProcessor>();
         services.AddSingleton<EntityDisabler>();
+        services.AddSingleton<IEntityReader, SqlEntityReader>();
         return services;
     }
 }

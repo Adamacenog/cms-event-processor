@@ -1,6 +1,6 @@
 # API contract
 
-**Status: `POST /cms/events` and authenticated `GET /openapi/v1.json` are implemented.** Consumer and health routes below remain approved design. The [webhook guide](webhook.md) describes the implementation; the [Postman collection](postman/README.md) exercises ingestion. Rate limiting is planned operational work and is not active yet.
+**Status: ingestion, consumer listing/lookup, administrator disabling, and authenticated OpenAPI are implemented.** Health routes remain approved design and rate limiting is not active yet. See the [webhook](webhook.md), [consumer](consumers.md), and [Postman](postman/README.md) guides.
 
 ## Common behavior
 
@@ -22,7 +22,8 @@
 | Process batch and receive final outcomes | Yes | No | No |
 | List/read entities | No | Visible only | All retained entities |
 | Disable entity | No | No | Yes |
-| Health checks | No | No | Yes |
+| Health checks (planned) | No | No | Yes |
+| Generated OpenAPI reference | Yes | Yes | Yes |
 
 There is no processing-status endpoint. Idempotency results are returned only by repeating the webhook request under the same CMS identity and key.
 
@@ -134,7 +135,7 @@ Example validation response, with fixed field names and no submitted values:
 
 ## GET /openapi/v1.json
 
-Implemented generated OpenAPI for the ingestion action and its actual input/output DTOs. CMS Basic authentication is required; missing/invalid credentials or consumer credentials receive `401`. Successful responses use `Cache-Control: no-store`. The document excludes test controllers and future routes. Download/import it into an API client; no interactive documentation UI is bundled. Its conditional envelope schema covers publish/unpublish versus delete; byte/depth limits, duplicate-name checks, and exact replay semantics are described alongside the schema because structural JSON Schema alone cannot express them all.
+Implemented generated OpenAPI covers ingestion and consumer actions and their transport DTOs. Any configured CMS, reader, or administrator account may retrieve it; missing/invalid credentials receive 401. Documentation access grants no additional business permissions. Operations declare CMS Basic or consumer Basic security, with administrator-only disabling described explicitly. Responses use no-store; test controllers and future health routes are excluded. Download/import the document into a client; no interactive documentation UI is bundled. Conditional input schemas, paging bounds, and response shapes are generated/refined from actual types, with byte/depth/duplicate/replay rules described alongside the schemas.
 
 ## GET /api/entities
 
@@ -144,6 +145,8 @@ List current snapshots. A reader sees only `cmsPublished && !adminDisabled`; an 
 | --- | --- |
 | `pageSize` | Integer from 1 to 100; default 20 |
 | `cursor` | Optional opaque continuation from a prior response; malformed values return `400` |
+
+Supply each paging field at most once. Unknown fields, empty supplied values, invalid integers, and malformed/cross-visibility cursors return sanitized 400 errors. Cursors are canonical versioned base64url, bounded to 520 characters and bound to reader/admin visibility. They are opaque continuations, not signed authorization tokens, encrypted values, or snapshots; changing a cursor never bypasses server-side filtering.
 
 Order by source ID using the database's explicit case-sensitive binary ordering. Apply visibility before pagination. A cursor continues strictly after the last returned ID. It is not an authorization token and does not provide snapshot isolation across requests.
 
@@ -169,15 +172,19 @@ Both roles use the same DTO. An empty result is `200` with `items: []` and `next
 
 Return `400` for invalid pagination, `401` for invalid consumer authentication, and `503` if reads are unavailable.
 
+SQL applies visibility and strict continuation before limiting to pageSize plus one projected row. The extra row only detects continuation; there is no offset scan, total-count query, or tracking. The cursor remains usable if its source row is deleted. Switching reader/admin visibility requires starting a new sequence.
+
 ## GET /api/entities/{id}
 
-Return one snapshot using the same DTO and visibility policy as listing.
+Return one snapshot using the same DTO and visibility policy as listing. Percent-encode the source ID as one path segment. The original segment is decoded once so an encoded slash and its literal percent spelling remain distinct. Case/Unicode are preserved; hidden, missing, and deleted lookup problems share the same shape.
 
 - `200`: visible snapshot.
 - `400`: invalid ID.
 - `401`: invalid consumer authentication.
 - `404`: absent/deleted entity, or an entity hidden from the reader.
 - `503`: reads unavailable.
+
+Read failure codes are storage_unavailable or read_timeout. Each read uses a fresh read context and one cooperative Processing:Timeout budget (default 30 seconds), with caller cancellation and no automatic retry. Safe 503 responses include Retry-After: 1. Aborted/disconnected callers may receive no response.
 
 ## PUT /api/entities/{id}/disable
 
@@ -193,6 +200,8 @@ The operation is idempotent: disabling an already disabled entity succeeds. It d
 - `503`: write storage/coordination unavailable.
 
 Coordinate this mutation with ingestion transactions so a racing publish cannot lose the override. A hard delete still removes the entity and its override.
+
+Every nonempty body is rejected, including unknown-length streams and `{}`. A successful 204 has no JSON body and waits for commit acknowledgment. Safe 503 codes are storage_unavailable, processing_timeout, and commit_unknown, with Retry-After: 1. Repeat this idempotent operation to confirm an uncertain commit; no key or replacement content is needed. CMS credentials receive 401 and readers receive 403 before validation/storage access.
 
 ## GET /health/live and GET /health/ready
 

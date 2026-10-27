@@ -4,16 +4,16 @@ using static CmsEventProcessor.IntegrationTests.Webhook.WebhookScenarios;
 namespace CmsEventProcessor.IntegrationTests.Webhook;
 
 /// <summary>
-/// Checks generated documentation against the actual production route, transport DTOs, and CMS-only access policy.
+/// Checks generated documentation against production routes, transport DTOs, and distinct operation security schemes.
 /// </summary>
 public sealed class OpenApiHttpTests
 {
     /// <summary>
-    /// CMS credentials retrieve only implemented ingestion metadata, including conditional envelopes, final responses, and Basic security.
+    /// Configured identities retrieve implemented ingestion/consumer metadata with distinct security schemes and no future/test routes.
     /// </summary>
     /// <returns>A task completing after document generation and schema/reference/response assertions.</returns>
     [Fact]
-    public async Task GeneratedDocumentDescribesOnlyImplementedWebhook()
+    public async Task GeneratedDocumentDescribesOnlyImplementedEndpoints()
     {
         await using var factory = new FoundationFactory();
         using var client = Client(factory);
@@ -23,7 +23,7 @@ public sealed class OpenApiHttpTests
         var text = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;
-        Assert.Single(root.GetProperty("paths").EnumerateObject());
+        Assert.Equal(4, root.GetProperty("paths").EnumerateObject().Count());
         var operation = root.GetProperty("paths").GetProperty("/cms/events").GetProperty("post");
         Assert.True(operation.GetProperty("security")[0].TryGetProperty("cmsBasic", out _));
         Assert.Equal("basic", root.GetProperty("components").GetProperty("securitySchemes").GetProperty("cmsBasic").GetProperty("scheme").GetString());
@@ -38,7 +38,11 @@ public sealed class OpenApiHttpTests
         foreach (var status in new[] { "200", "400", "401", "409", "413", "415", "500", "503" })
             Assert.True(operation.GetProperty("responses").TryGetProperty(status, out _));
         Assert.DoesNotContain("/_test", text);
-        Assert.DoesNotContain("/api/entities", text);
+        var consumers = root.GetProperty("paths").GetProperty("/api/entities").GetProperty("get");
+        Assert.True(consumers.GetProperty("security")[0].TryGetProperty("consumerBasic", out _));
+        Assert.Equal(2, consumers.GetProperty("parameters").GetArrayLength());
+        Assert.True(root.GetProperty("paths").GetProperty("/api/entities/{id}/disable").TryGetProperty("put", out _));
+        Assert.DoesNotContain("/health/", text);
         Assert.DoesNotContain(TestAccounts.CmsPassword, text);
     }
 

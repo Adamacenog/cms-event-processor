@@ -1,4 +1,5 @@
 using CmsEventProcessor;
+using CmsEventProcessor.Api.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -65,6 +66,7 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
                 options.Rules.Clear();
                 options.Rules.Add(new LoggerFilterRule(null, "Microsoft.EntityFrameworkCore", LogLevel.None, null));
             });
+            services.AddLogging(PrivacyLogging.Configure);
             ConfigureTestServices?.Invoke(services);
         });
     }

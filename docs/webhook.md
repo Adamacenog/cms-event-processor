@@ -1,6 +1,6 @@
 # Synchronous CMS webhook
 
-`POST /cms/events` is implemented under the CMS Basic scheme. The [API contract](api.md#post-cmsevents) describes every field, response, limit, and retry rule. Consumer and health endpoints are subsequent work.
+`POST /cms/events` is implemented under the CMS Basic scheme. The [API contract](api.md#post-cmsevents) describes every field, response, limit, and retry rule. [Consumer endpoints](consumers.md) are implemented; health endpoints remain subsequent work.
 
 ## Request lifecycle
 
@@ -55,9 +55,9 @@ Logs report safe validation counts, trace IDs, processing classifications, event
 
 ## OpenAPI and Postman
 
-Use CMS Basic credentials to retrieve `/openapi/v1.json`. The generated document includes implemented routes only, response DTOs, the strict envelope/conditional content schema, optional key header, and safe response codes. It uses ASP.NET Core's [OpenAPI transformers](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/customize-openapi?view=aspnetcore-10.0) because ingestion deliberately reads exact bytes before typed construction. Microsoft.OpenApi is pinned to patched 2.7.5 to retain vulnerability auditing; see the [upstream advisory](https://github.com/advisories/GHSA-v5pm-xwqc-g5wc).
+Any configured account may retrieve `/openapi/v1.json`; business operation schemes remain separate. The generated document includes implemented routes only, response DTOs, the strict envelope/conditional content schema, optional key header, and safe response codes. It uses ASP.NET Core's [OpenAPI transformers](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/customize-openapi?view=aspnetcore-10.0) because ingestion deliberately reads exact bytes before typed construction. Microsoft.OpenApi is pinned to patched 2.7.5 to retain vulnerability auditing; see the [upstream advisory](https://github.com/advisories/GHSA-v5pm-xwqc-g5wc).
 
-The [Postman walkthrough](postman/README.md) provides executable synthetic ingestion, replay/conflict, validation, duplicate, deletion, and documentation requests. Templates contain no credentials. Consumer-state requests will be added with those routes.
+The [Postman walkthrough](postman/README.md) provides executable synthetic ingestion, replay/conflict, validation, duplicate, deletion, and documentation requests. Templates contain no credentials. The collection now includes reader/admin state checks and local disabling.
 
 ## Verification boundaries
 

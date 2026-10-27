@@ -1,6 +1,6 @@
 # Architecture and processing contract
 
-**Status: host, authentication, domain rules, SQL transactions, and the synchronous CMS webhook are implemented.** The [webhook guide](webhook.md) records HTTP validation, responses, documentation, and SQL-backed evidence. Consumer and health endpoints remain pending.
+**Status: host, authentication, domain rules, SQL transactions, and the synchronous CMS webhook are implemented.** The [webhook guide](webhook.md) records HTTP validation, responses, documentation, and SQL-backed evidence. [Consumer reads and administrator disabling](consumers.md) are implemented; health/telemetry remain pending.
 
 ## Goals and scope
 
@@ -19,9 +19,9 @@ The solution contains three projects: the production host, unit tests, and integ
 | Production area | Owns | Intended dependencies |
 | --- | --- | --- |
 | Domain | Implemented entity lifecycle, event decisions, publication state, and local override | Runtime types only |
-| Application | Identity contracts/results, transactional batch processing, disabling, and mutation contracts; planned consumer queries | Domain |
+| Application | Identity contracts/results, transactional batch processing, disabling, and mutation contracts; bounded consumer read contracts/models | Domain |
 | Infrastructure | Identity storage/provisioning and EF persistence, migrations, SQL coordination, and replay storage | Application and Domain |
-| Api | HTTP authentication, CMS controller/validation/DTOs, OpenAPI, account commands, and shared safe errors; planned consumer controllers | Application contracts |
+| Api | HTTP authentication, CMS controller/validation/DTOs, OpenAPI, account commands, and shared safe errors; role-aware consumer controllers and cursor validation | Application contracts |
 | Root Program.cs | Host startup and composition | Api and Infrastructure registration |
 
 Both test projects reference the production project. Group application code by feature. Keep domain rules independent of HTTP and EF. Use explicit DTOs and dependency injection; do not introduce a generic repository framework, mediator library, broker, or separate microservice for this assessment.

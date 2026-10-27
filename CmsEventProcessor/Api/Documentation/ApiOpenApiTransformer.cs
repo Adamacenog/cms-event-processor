@@ -6,9 +6,9 @@ using Microsoft.OpenApi;
 namespace CmsEventProcessor.Api.Documentation;
 
 /// <summary>
-/// Adds exact-byte webhook input metadata and CMS Basic security to the document generated from implemented controller responses.
+/// Describes implemented CMS/consumer operations, their distinct Basic schemes, and exact-byte webhook input metadata.
 /// </summary>
-internal sealed class CmsOpenApiTransformer : IOpenApiDocumentTransformer
+internal sealed class ApiOpenApiTransformer : IOpenApiDocumentTransformer
 {
     /// <summary>
     /// Describes bounded raw-body reading while deriving the envelope schema from the DTO actually used by validation.
@@ -24,7 +24,7 @@ internal sealed class CmsOpenApiTransformer : IOpenApiDocumentTransformer
         {
             Title = "CMS Event Processor",
             Version = "v1",
-            Description = "Implemented synchronous CMS ingestion. Consumer and health endpoints are not available yet."
+            Description = "Synchronous CMS ingestion, role-aware current entities, and administrator disabling. Health endpoints are not available yet."
         };
         document.Servers = [];
         document.Components ??= new OpenApiComponents();
@@ -35,8 +35,45 @@ internal sealed class CmsOpenApiTransformer : IOpenApiDocumentTransformer
                 Type = SecuritySchemeType.Http,
                 Scheme = "basic",
                 Description = "Preconfigured CMS organization credentials; use HTTPS outside loopback development."
+            },
+            ["consumerBasic"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "basic",
+                Description = "Preconfigured reader or administrator credentials. Disabling requires the server-configured administrator role."
             }
         };
+        foreach (var (route, item) in document.Paths.Where(entry => entry.Key.StartsWith("/api/entities", StringComparison.Ordinal)))
+        {
+            if (item.Operations is null) continue;
+            foreach (var (method, action) in item.Operations)
+            {
+                action.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("consumerBasic", document)] = [] }];
+                action.Description = method == HttpMethod.Put ?
+                    "Administrator only. No body. Waits for coordinated commit; changes only the local disable flag. Repeat disable is idempotent. " +
+                    "A 503 around commit is uncertain; caller may repeat this idempotent operation." :
+                    "Reader sees only cmsPublished && !adminDisabled; administrator sees all retained snapshots. Hidden/missing/deleted lookup returns 404.";
+                if (route == "/api/entities" && method == HttpMethod.Get)
+                {
+                    action.Parameters ??= [];
+                    action.Parameters.Add(new OpenApiParameter
+                    {
+                        Name = "pageSize",
+                        In = ParameterLocation.Query,
+                        Description = "Single integer, 1-100; default 20. Visibility and binary source-ID ordering are applied before limiting.",
+                        Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "1", Maximum = "100" }
+                    });
+                    action.Parameters.Add(new OpenApiParameter
+                    {
+                        Name = "cursor",
+                        In = ParameterLocation.Query,
+                        Description = "Optional single versioned opaque continuation from the same visibility. Bounded to 520 characters. " +
+                            "Grants no access, is not a cross-request snapshot, and is rejected if malformed. Unknown/repeated query fields are invalid.",
+                        Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 520 }
+                    });
+                }
+            }
+        }
         if (!document.Paths.TryGetValue("/cms/events", out var path) || path.Operations is null ||
             !path.Operations.TryGetValue(HttpMethod.Post, out var operation))
         {
