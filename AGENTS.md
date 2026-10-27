@@ -13,14 +13,13 @@ The delivery plan and requirements checklist are private working documents in th
 
 ## Approval and Git workflow
 
-- The owner must review changes **before any commit, push, or PR creation**. A request to implement a step is not approval for those actions.
-- At the review handoff, summarize changes, validation, and remaining limitations. Leave files uncommitted and unstaged unless the owner asks otherwise.
-- Wait for explicit approval of the relevant actions. Once granted, carry out the authorized actions without repeatedly asking for the same permission.
-- Material changes after review require a fresh review before committing them.
-- Step 01 may become the initial commit on `main` after approval; it needs no PR. Do not create an empty bootstrap commit beforehand.
+- The owner reviews implementation changes in the PR. Standing authorization covers committing, pushing, and creating a PR for each requested implementation step; do not stop for a separate pre-commit approval unless the owner explicitly requests it for that work.
+- Validate the change, commit it on the planned branch, push it, and open a PR targeting `main`. Include the concrete behavior, verification evidence, and remaining limitations in the PR description and review handoff.
+- Address requested or confirmed review findings on the same branch, validate the fixes, and commit/push them to the existing PR. Report material changes for continued PR review.
+- Step 01 was the initial approved commit on `main` without a PR. Subsequent steps use PRs; do not create an empty bootstrap commit.
 - Subsequent work starts from the latest approved `main`, on the branch named in the delivery plan. Never use a `codex/` branch prefix in this repository.
 - Each step is a separate reviewable change. Do not begin the next step before the previous one is approved and merged.
-- Merge requires authorization; approval to commit or open a PR does not itself authorize merging.
+- Merge still requires authorization; standing permission to commit, push, and open PRs does not authorize merging.
 - Use focused, descriptive commits. Keep each commit buildable and include tests and documentation with the behavior they cover.
 - Do not fabricate reviews, approvals, passing checks, performance results, or implementation status.
 
