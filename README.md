@@ -8,6 +8,8 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 
 | Document | Purpose |
 | --- | --- |
+| [Native quickstart](#running-locally) | Run the API directly with the .NET SDK |
+| [Docker quickstart](#running-with-docker) | Build and run the API container with SQL and HTTPS |
 | [Assessment brief](docs/assessment/brief.md) | Readable assessment with the employer's requirements preserved |
 | [Original assessment](docs/assessment/original.md) | Unmodified source supplied for the challenge |
 | [Architecture](docs/architecture.md) | Components, persistence, security, and processing guarantees |
@@ -207,7 +209,64 @@ dotnet run --project CmsEventProcessor --configuration Release --no-build --no-l
 
 Replace `<existing-username>` before rotation. `--kind` accepts `Cms`, `Reader`, or `Admin`; only newly generated passwords are displayed. Initialization refuses an existing file. Local credential files are excluded from Git, publish output, and container context. Stop SQL with `docker compose stop sql`; its volume retains development data.
 
-For Linux packaging, follow [container HTTPS setup](docs/development.md#container-build-and-https-execution). For a temporary evaluator URL, follow [the optional demo guide](docs/deployment.md#temporary-cloudflare-demonstration).
+For container execution, follow [Running with Docker](#running-with-docker) below. For a temporary evaluator URL, follow [the optional demo guide](docs/deployment.md#temporary-cloudflare-demonstration).
+
+## Running with Docker
+
+This path runs **both SQL Server and the API in Linux containers**. Install Docker with an x86-64 Linux container engine and the pinned .NET SDK; the host SDK is used for one-time account provisioning, migrations, and development-certificate export. The API itself runs from the image. Run the commands from the repository root. For Apple Silicon or external SQL, use the [platform and external-database guidance](docs/persistence.md#local-sql-setup).
+
+1. Copy `.env.example` to the ignored `.env` and set a private complex `SQL_SA_PASSWORD`; optionally change `SQL_PORT`. Start SQL, build the image, and prepare the setup tooling:
+
+```sh
+docker compose up --detach --wait sql
+docker build --tag cms-event-processor:local .
+dotnet restore CmsEventProcessor.slnx --locked-mode
+dotnet tool restore
+dotnet build CmsEventProcessor.slnx --configuration Release --no-restore
+```
+
+2. For a new setup, generate accounts and save the three displayed credential pairs securely. If `CmsEventProcessor/appsettings.Local.json` already contains your provisioned accounts, reuse it and skip initialization:
+
+```sh
+dotnet run --project CmsEventProcessor --configuration Release --no-build --no-launch-profile -- accounts init --file appsettings.Local.json
+```
+
+Add `Persistence:WriteConnectionString` and `Persistence:ReadConnectionString` to that file while preserving `Authentication`. For this **host-side migration**, both connections use `Server=127.0.0.1,<SQL_PORT>` and the private SQL password, as shown in [Running locally](#running-locally). Then apply the schema explicitly:
+
+```sh
+dotnet tool run dotnet-ef -- database update --project CmsEventProcessor --context WriteContext --configuration Release --no-build
+```
+
+3. Create the ignored `.secrets` directory if absent (`New-Item -ItemType Directory -Force .secrets` in PowerShell, or `mkdir -p .secrets` in a POSIX shell). Export a development HTTPS certificate, replacing the password placeholder with a private value:
+
+```sh
+dotnet dev-certs https --export-path .secrets/https.pfx --password <private-certificate-password>
+```
+
+Create the private `.secrets/container.env` with the following settings, replacing every password placeholder. Inside the Compose network, SQL uses **`sql,1433`**, regardless of the host's `SQL_PORT`. These container overrides take precedence over the host-side connections in the mounted account file:
+
+```text
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_URLS=https://+:8443
+Persistence__WriteConnectionString=Server=sql,1433;Database=CmsEventProcessor;User Id=sa;Password=<private SQL password>;Encrypt=True;TrustServerCertificate=True;ConnectRetryCount=0
+Persistence__ReadConnectionString=Server=sql,1433;Database=CmsEventProcessor;User Id=sa;Password=<private SQL password>;Encrypt=True;TrustServerCertificate=True;ConnectRetryCount=0
+Kestrel__Certificates__Default__Path=/run/secrets/https.pfx
+Kestrel__Certificates__Default__Password=<private-certificate-password>
+```
+
+Use the same database name you migrated if you customized it. Keep this environment file, the account configuration, and certificate private; they are excluded from Git and the image build context.
+
+4. Replace both mount placeholders below with absolute host file paths, preserving the quotes. Run the API on the Compose SQL network, with account configuration and certificate mounted read-only:
+
+```sh
+docker run --rm --name cms-event-processor-api --network cms-event-processor_default --publish 127.0.0.1:8443:8443 --env-file .secrets/container.env --mount "type=bind,source=<absolute-account-file>,target=/app/appsettings.Local.json,readonly" --mount "type=bind,source=<absolute-certificate-file>,target=/run/secrets/https.pfx,readonly" cms-event-processor:local
+```
+
+The account file is `CmsEventProcessor/appsettings.Local.json`; the certificate is `.secrets/https.pfx`. The image runs as a non-root user. On Linux, owner-only files may require adding `--user "$(id -u):$(id -g)" --env HOME=/tmp` so that user can read the mounts; preserve restrictive file permissions. If you override the Compose project name, adjust the network name accordingly. See [container configuration details](docs/development.md#container-build-and-https-execution) for file-sharing and external-SQL variants.
+
+5. Access **`https://localhost:8443`**, trust the development certificate through your OS/client workflow, and set the private Postman environment's `baseUrl` to that address. Run the same 29-request walkthrough with the generated CMS/reader/admin credentials. Health checks require the administrator account. A shared deployment needs a trusted hostname-matching certificate and appropriately scoped SQL credentials.
+
+The API runs in the foreground; stop it with Ctrl+C, or run `docker stop --time 15 cms-event-processor-api` from another terminal. `--rm` removes the stopped API container. Stop SQL separately with `docker compose stop sql`; its named volume retains data. Account changes require restarting the API, and migrations remain explicit operator commands.
 
 ## Tests and code conventions
 
