@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using CmsEventProcessor.Application.Observability;
 using CmsEventProcessor.Application.Processing.Contracts;
 using CmsEventProcessor.Application.Processing.Models;
 using CmsEventProcessor.Application.Processing.Options;
@@ -16,8 +17,9 @@ namespace CmsEventProcessor.Application.Processing.Services;
 /// <param name="options">The validated single-attempt deadline and lock wait.</param>
 /// <param name="clock">The UTC retention clock; source event ordering does not use this clock.</param>
 /// <param name="logger">The logger receiving correlation, event position, and safe decisions without content or identifiers.</param>
+/// <param name="telemetry">The fixed-name operation and committed-effect instruments.</param>
 internal sealed class BatchProcessor(IMutationTransactionFactory transactions, IOptions<ProcessingOptions> options,
-    TimeProvider clock, ILogger<BatchProcessor> logger)
+    TimeProvider clock, ILogger<BatchProcessor> logger, OperationTelemetry telemetry)
 {
     /// <summary>
     /// Executes one atomic attempt, replaying an unexpired success before domain evaluation and never retrying internally.
@@ -30,6 +32,7 @@ internal sealed class BatchProcessor(IMutationTransactionFactory transactions, I
     public async Task<ProcessingResult> ProcessAsync(BatchRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var observation = telemetry.Begin("batch", cancellationToken);
         var correlation = Guid.NewGuid();
         int? activeEvent = null;
         await using var attempt = new MutationAttempt(options.Value, cancellationToken, logger);
@@ -39,6 +42,7 @@ internal sealed class BatchProcessor(IMutationTransactionFactory transactions, I
             if (!await transaction.AcquireAsync(options.Value.LockWait, attempt.Token))
             {
                 logger.LogWarning("Batch {BatchId} could not acquire mutation ownership.", correlation);
+                observation.SetOutcome(nameof(MutationStatus.StorageUnavailable));
                 return new ProcessingResult(MutationStatus.StorageUnavailable);
             }
             var now = clock.GetUtcNow();
@@ -50,9 +54,11 @@ internal sealed class BatchProcessor(IMutationTransactionFactory transactions, I
                     if (!CryptographicOperations.FixedTimeEquals(replay.BodyHash.Span, request.BodyHash.Span))
                     {
                         logger.LogWarning("Batch {BatchId} rejected: idempotency key conflict.", correlation);
+                        observation.SetOutcome(nameof(MutationStatus.IdempotencyConflict));
                         return new ProcessingResult(MutationStatus.IdempotencyConflict);
                     }
                     logger.LogInformation("Replaying committed batch {BatchId}.", replay.Response.BatchId);
+                    observation.SetOutcome("Replayed");
                     return new ProcessingResult(MutationStatus.Succeeded, replay.Response, isReplay: true);
                 }
             }
@@ -70,6 +76,7 @@ internal sealed class BatchProcessor(IMutationTransactionFactory transactions, I
                 {
                     logger.LogWarning("Batch {BatchId} rejected at event {Index}: version payload conflict; no batch success.",
                         correlation, index);
+                    observation.SetOutcome(nameof(MutationStatus.VersionConflict));
                     return new ProcessingResult(MutationStatus.VersionConflict, eventIndex: index);
                 }
                 if (transition.Outcome == TransitionOutcome.Applied)
@@ -88,6 +95,8 @@ internal sealed class BatchProcessor(IMutationTransactionFactory transactions, I
                     request.BodyHash, success, completed, completed.AddDays(7)), attempt.Token);
             }
             await attempt.CommitAsync();
+            observation.SetOutcome(nameof(MutationStatus.Succeeded));
+            telemetry.RecordEvents(outcomes.Count(value => value.Outcome == "applied"), outcomes.Count(value => value.Outcome == "skipped"));
             foreach (var outcome in outcomes)
             {
                 logger.LogInformation("Committed batch {BatchId} event {Index}: {Outcome}/{Reason}.",
@@ -99,7 +108,9 @@ internal sealed class BatchProcessor(IMutationTransactionFactory transactions, I
         {
             logger.LogWarning("Batch {BatchId} interrupted; last evaluated event {Index}. No committed outcomes reported.",
                 correlation, activeEvent);
-            return new ProcessingResult(attempt.ClassifyFailure(exception, correlation));
+            var status = attempt.ClassifyFailure(exception, correlation);
+            observation.SetOutcome(status.ToString());
+            return new ProcessingResult(status);
         }
         catch (Exception exception)
         {

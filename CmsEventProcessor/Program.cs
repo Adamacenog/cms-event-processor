@@ -6,6 +6,8 @@ using CmsEventProcessor.Api.Cms.Services;
 using CmsEventProcessor.Api.Diagnostics;
 using CmsEventProcessor.Api.Documentation;
 using CmsEventProcessor.Api.ErrorHandling;
+using CmsEventProcessor.Api.Operations;
+using CmsEventProcessor.Api.Operations.Services;
 using CmsEventProcessor.Api.Provisioning;
 using CmsEventProcessor.Application.Identity.Contracts;
 using CmsEventProcessor.Infrastructure.Identity;
@@ -25,7 +27,7 @@ public partial class Program
     /// </summary>
     /// <param name="args">Account-command arguments or ASP.NET Core host configuration overrides.</param>
     /// <returns>A task containing zero after successful provisioning or orderly host shutdown, or one for a rejected provisioning command.</returns>
-    /// <exception cref="Microsoft.Extensions.Options.OptionsValidationException">Required authentication accounts are missing or invalid.</exception>
+    /// <exception cref="Microsoft.Extensions.Options.OptionsValidationException">Required accounts, SQL configuration, or operational settings are missing or invalid.</exception>
     /// <exception cref="System.IO.IOException">Configuration cannot be read or the HTTP listener cannot bind.</exception>
     /// <exception cref="System.IO.InvalidDataException">A loaded application configuration file is malformed.</exception>
     public static async Task<int> Main(string[] args)
@@ -52,11 +54,13 @@ public partial class Program
         builder.Services.AddIdentityInfrastructure();
         builder.Services.AddSqlPersistence();
         builder.Services.AddConfiguredAuthentication();
+        builder.Services.AddOperationalReadiness();
         builder.Services.AddSingleton<WebhookRequestReader>();
         builder.Services.AddOpenApi(options =>
         {
             options.ShouldInclude = description => description.RelativePath == "cms/events" ||
-                description.RelativePath?.StartsWith("api/entities", StringComparison.Ordinal) == true;
+                description.RelativePath?.StartsWith("api/entities", StringComparison.Ordinal) == true ||
+                description.RelativePath?.StartsWith("health/", StringComparison.Ordinal) == true;
             options.AddDocumentTransformer<ApiOpenApiTransformer>();
             options.AddSchemaTransformer<CmsEventSchemaTransformer>();
             options.AddSchemaTransformer<EntitySchemaTransformer>();
@@ -89,6 +93,7 @@ public partial class Program
             context.Response.Headers.CacheControl = "no-store";
             await next(context);
         });
+        app.UseMiddleware<RequestTelemetryMiddleware>();
         app.UseExceptionHandler(new ExceptionHandlerOptions { SuppressDiagnosticsCallback = _ => true });
         app.UseStatusCodePages(async status =>
         {
@@ -108,6 +113,7 @@ public partial class Program
             await next(context);
         });
         app.UseRouting();
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();

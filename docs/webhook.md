@@ -1,6 +1,6 @@
 # Synchronous CMS webhook
 
-`POST /cms/events` is implemented under the CMS Basic scheme. The [API contract](api.md#post-cmsevents) describes every field, response, limit, and retry rule. [Consumer endpoints](consumers.md) are implemented; health endpoints remain subsequent work.
+`POST /cms/events` is implemented under the CMS Basic scheme. The [API contract](api.md#post-cmsevents) describes every field, response, limit, and retry rule. [Consumer endpoints](consumers.md) are implemented; [operational health, telemetry, and request limits](operations.md) are implemented.
 
 ## Request lifecycle
 

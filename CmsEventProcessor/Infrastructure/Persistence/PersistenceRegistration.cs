@@ -1,4 +1,7 @@
 using CmsEventProcessor.Application.Entities.Contracts;
+using CmsEventProcessor.Application.Observability;
+using CmsEventProcessor.Application.Operations.Contracts;
+using CmsEventProcessor.Application.Operations.Options;
 using CmsEventProcessor.Application.Processing.Contracts;
 using CmsEventProcessor.Application.Processing.Options;
 using CmsEventProcessor.Application.Processing.Services;
@@ -6,6 +9,7 @@ using CmsEventProcessor.Infrastructure.Persistence.Contexts;
 using CmsEventProcessor.Infrastructure.Persistence.Options;
 using CmsEventProcessor.Infrastructure.Persistence.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace CmsEventProcessor.Infrastructure.Persistence;
@@ -49,6 +53,9 @@ internal static class PersistenceRegistration
         services.AddSingleton<BatchProcessor>();
         services.AddSingleton<EntityDisabler>();
         services.AddSingleton<IEntityReader, SqlEntityReader>();
+        services.TryAddSingleton<OperationTelemetry>();
+        services.AddOptions<OperationsOptions>().BindConfiguration(OperationsOptions.SectionName);
+        services.AddSingleton<IReadinessProbe, SqlReadinessProbe>();
         return services;
     }
 }

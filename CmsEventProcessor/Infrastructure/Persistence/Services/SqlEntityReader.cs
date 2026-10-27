@@ -4,6 +4,7 @@ using System.Text.Json;
 using CmsEventProcessor.Application.Entities.Contracts;
 using CmsEventProcessor.Application.Entities.Exceptions;
 using CmsEventProcessor.Application.Entities.Models;
+using CmsEventProcessor.Application.Observability;
 using CmsEventProcessor.Application.Processing.Options;
 using CmsEventProcessor.Domain.Entities;
 using CmsEventProcessor.Infrastructure.Persistence.Contexts;
@@ -19,8 +20,9 @@ namespace CmsEventProcessor.Infrastructure.Persistence.Services;
 /// <param name="contexts">The independently configured read-context factory.</param>
 /// <param name="options">The validated total operation timeout, shared with processing configuration.</param>
 /// <param name="logger">The logger receiving safe read correlations and failure types, never source values.</param>
+/// <param name="telemetry">The fixed-name read instrumentation.</param>
 internal sealed class SqlEntityReader(IDbContextFactory<ReadContext> contexts, IOptions<ProcessingOptions> options,
-    ILogger<SqlEntityReader> logger) : IEntityReader
+    ILogger<SqlEntityReader> logger, OperationTelemetry telemetry) : IEntityReader
 {
     private static readonly Expression<Func<SnapshotRow, EntityReadProjection>> Projection = row =>
         new EntityReadProjection(row.Id, row.Payload, row.Version, row.CmsTimestamp, row.CmsPublished, row.AdminDisabled);
@@ -103,16 +105,20 @@ internal sealed class SqlEntityReader(IDbContextFactory<ReadContext> contexts, I
     /// <exception cref="EntityReadException">Storage fails or the operation budget expires.</exception>
     private async Task<T> ExecuteAsync<T>(Func<ReadContext, CancellationToken, Task<T>> query, CancellationToken caller)
     {
+        using var observation = telemetry.Begin("read", caller);
         using var deadline = new CancellationTokenSource(options.Value.Timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(caller, deadline.Token);
         try
         {
             await using var context = await contexts.CreateDbContextAsync(linked.Token);
-            return await query(context, linked.Token);
+            var result = await query(context, linked.Token);
+            observation.SetOutcome(result is null ? "NotFound" : "Succeeded");
+            return result;
         }
         catch (Exception exception) when (exception is DbException or OperationCanceledException)
         {
             caller.ThrowIfCancellationRequested();
+            observation.SetOutcome(deadline.IsCancellationRequested ? "TimedOut" : "StorageUnavailable");
             logger.LogWarning("Entity read {Correlation} failed; deadline expired: {TimedOut}; failure type {FailureType}.",
                 Guid.NewGuid(), deadline.IsCancellationRequested, exception.GetType().Name);
             throw new EntityReadException(deadline.IsCancellationRequested, exception);

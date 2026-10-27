@@ -1,3 +1,4 @@
+using CmsEventProcessor.Application.Observability;
 using CmsEventProcessor.Application.Processing.Contracts;
 using CmsEventProcessor.Application.Processing.Models;
 using CmsEventProcessor.Application.Processing.Options;
@@ -13,8 +14,9 @@ namespace CmsEventProcessor.Application.Processing.Services;
 /// <param name="transactions">The shared mutation transaction factory.</param>
 /// <param name="options">The single-attempt deadline and lock wait.</param>
 /// <param name="logger">The logger receiving safe operation statuses without content or source identifiers.</param>
+/// <param name="telemetry">The fixed-name disable instrumentation.</param>
 internal sealed class EntityDisabler(IMutationTransactionFactory transactions, IOptions<ProcessingOptions> options,
-    ILogger<EntityDisabler> logger)
+    ILogger<EntityDisabler> logger, OperationTelemetry telemetry)
 {
     /// <summary>
     /// Applies an idempotent local override without changing CMS fields or reviving a deleted entity.
@@ -27,6 +29,7 @@ internal sealed class EntityDisabler(IMutationTransactionFactory transactions, I
     public async Task<MutationStatus> DisableAsync(string id, CancellationToken cancellationToken = default)
     {
         EntityRules.ValidateId(id);
+        using var observation = telemetry.Begin("disable", cancellationToken);
         var correlation = Guid.NewGuid();
         await using var attempt = new MutationAttempt(options.Value, cancellationToken, logger);
         try
@@ -35,11 +38,13 @@ internal sealed class EntityDisabler(IMutationTransactionFactory transactions, I
             if (!await transaction.AcquireAsync(options.Value.LockWait, attempt.Token))
             {
                 logger.LogWarning("Local mutation {Correlation} could not acquire ownership.", correlation);
+                observation.SetOutcome(nameof(MutationStatus.StorageUnavailable));
                 return MutationStatus.StorageUnavailable;
             }
             var current = await transaction.ReadEntityAsync(id, attempt.Token);
             if (current.Snapshot is null)
             {
+                observation.SetOutcome(nameof(MutationStatus.NotFound));
                 return MutationStatus.NotFound;
             }
             var disabled = current.Snapshot.Disable();
@@ -48,12 +53,15 @@ internal sealed class EntityDisabler(IMutationTransactionFactory transactions, I
                 await transaction.WriteEntityAsync(id, new StoredEntityState(disabled, null), attempt.Token);
             }
             await attempt.CommitAsync();
+            observation.SetOutcome(nameof(MutationStatus.Succeeded));
             logger.LogInformation("Local mutation {Correlation} committed.", correlation);
             return MutationStatus.Succeeded;
         }
         catch (Exception exception) when (MutationAttempt.IsOperationalFailure(exception))
         {
-            return attempt.ClassifyFailure(exception, correlation);
+            var status = attempt.ClassifyFailure(exception, correlation);
+            observation.SetOutcome(status.ToString());
+            return status;
         }
     }
 }

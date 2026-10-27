@@ -1,6 +1,6 @@
 # API contract
 
-**Status: ingestion, consumer listing/lookup, administrator disabling, and authenticated OpenAPI are implemented.** Health routes remain approved design and rate limiting is not active yet. See the [webhook](webhook.md), [consumer](consumers.md), and [Postman](postman/README.md) guides.
+**Status: ingestion, consumer listing/lookup, administrator disabling, and authenticated OpenAPI are implemented.** Administrator health and pre-authentication request limits are implemented; see the [operations guide](operations.md). See the [webhook](webhook.md), [consumer](consumers.md), and [Postman](postman/README.md) guides.
 
 ## Common behavior
 
@@ -10,10 +10,12 @@
 - Accounts are provisioned through setup configuration, not a registration or login endpoint. See [authentication and credential setup](../README.md#authentication-and-credential-setup) for initial provisioning, startup loading, deployment secrets, and rotation.
 - CMS and consumer authentication are separate. Reader/admin roles come from server-side configuration.
 - Confidential responses use `Cache-Control: no-store`.
-- Failures use `application/problem+json` with `type`, `title`, `status`, and a correlation `traceId`. Validation failures additionally contain an `errors` map. Do not echo payload values, credentials, or internal exception details.
+- Except for minimal health-unavailable JSON, failures use `application/problem+json` with `type`, `title`, `status`, and a correlation `traceId`. Validation failures additionally contain an `errors` map. Do not echo payload values, credentials, or internal exception details.
 - Missing/invalid credentials return `401` with an appropriate Basic `WWW-Authenticate` challenge. An authenticated identity lacking the required role within a recognized scheme returns `403`.
 - Supplying CMS credentials to a consumer-only route, or consumer credentials to a CMS-only route, returns `401`: those credentials are not valid in the route's authentication scheme. An authenticated reader accessing an administrator route returns `403`.
 - IDs are opaque, case-sensitive strings. Encode them correctly when used in URL path segments.
+
+Every transport-valid request consumes the actual socket peer's process-local fixed-window budget (default 600/minute), before password verification. This includes valid requests, health, and OpenAPI. A rejected request returns `429`, `Retry-After` seconds, and `errorCode: rate_limit_exceeded`. Forwarded headers are ignored; shared proxies/tunnels share a budget. See [configuration and limits](operations.md#request-limit).
 
 ## Access matrix
 
@@ -22,7 +24,7 @@
 | Process batch and receive final outcomes | Yes | No | No |
 | List/read entities | No | Visible only | All retained entities |
 | Disable entity | No | No | Yes |
-| Health checks (planned) | No | No | Yes |
+| Health checks | No | No | Yes |
 | Generated OpenAPI reference | Yes | Yes | Yes |
 
 There is no processing-status endpoint. Idempotency results are returned only by repeating the webhook request under the same CMS identity and key.
@@ -112,7 +114,7 @@ The batch is atomic. A same-version payload conflict returns Problem Details wit
 | `409` | Same-version payload conflict, or unexpired idempotency key reused for a different body |
 | `413` | Request body exceeds the limit |
 | `415` | Unsupported content type |
-| `429` | Reserved for planned request/authentication rate limiting; not currently emitted |
+| `429` | Peer request limit exceeded before authentication; safe `rate_limit_exceeded` and `Retry-After` |
 | `503` | Transient database failure, lock unavailability, or processing deadline exceeded; retry with the same key/body |
 
 Use a configurable processing deadline, default 30 seconds, covering lock acquisition and database operations through commit. Propagate request cancellation; roll back uncommitted work. A timeout/disconnect around commit can leave the caller uncertain, so neither a missing response nor a `503` proves rollback when commit acknowledgment was lost. Retry with the same key and identical body to recover a committed result safely. The service has no automatic transaction retry loop or pending work to resume after restart.
@@ -135,7 +137,7 @@ Example validation response, with fixed field names and no submitted values:
 
 ## GET /openapi/v1.json
 
-Implemented generated OpenAPI covers ingestion and consumer actions and their transport DTOs. Any configured CMS, reader, or administrator account may retrieve it; missing/invalid credentials receive 401. Documentation access grants no additional business permissions. Operations declare CMS Basic or consumer Basic security, with administrator-only disabling described explicitly. Responses use no-store; test controllers and future health routes are excluded. Download/import the document into a client; no interactive documentation UI is bundled. Conditional input schemas, paging bounds, and response shapes are generated/refined from actual types, with byte/depth/duplicate/replay rules described alongside the schemas.
+Implemented generated OpenAPI covers ingestion, consumer actions, health checks, and their transport DTOs. Any configured CMS, reader, or administrator account may retrieve it; missing/invalid credentials receive 401. Documentation access grants no additional business permissions. Operations declare CMS Basic or consumer Basic security, with administrator-only disabling described explicitly. Responses use no-store; test controllers are excluded. All operations document 429, and health operations require administrators. Download/import the document into a client; no interactive documentation UI is bundled. Conditional input schemas, paging bounds, and response shapes are generated/refined from actual types, with byte/depth/duplicate/replay rules described alongside the schemas.
 
 ## GET /api/entities
 
@@ -208,7 +210,8 @@ Every nonempty body is rejected, including unknown-length streams and `{}`. A su
 Administrator authentication is required. Return minimal status JSON, never connection strings, entity information, dependency details, or exception messages.
 
 - Liveness returns `200` while the HTTP process is serving requests.
-- Readiness returns `200` when database access and the expected schema are available; otherwise `503`.
+- Readiness returns `200 {"status":"ready"}` when both configured connections, migration history, and required columns are available; otherwise `503 {"status":"unavailable"}`. Liveness returns `{"status":"live"}`. These minimal responses use `application/json` and no-store.
+- Readiness is unavailable during shutdown; its default three-second cooperative probe neither migrates nor repairs storage. It does not audit all permissions/indexes or replica freshness. See [probe details](operations.md#health-and-graceful-shutdown).
 - A failed domain batch alone does not make the whole application unready.
 - Invalid authentication returns `401`; an authenticated reader receives `403`.
 

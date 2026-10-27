@@ -23,7 +23,7 @@ public sealed class OpenApiHttpTests
         var text = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;
-        Assert.Equal(4, root.GetProperty("paths").EnumerateObject().Count());
+        Assert.Equal(6, root.GetProperty("paths").EnumerateObject().Count());
         var operation = root.GetProperty("paths").GetProperty("/cms/events").GetProperty("post");
         Assert.True(operation.GetProperty("security")[0].TryGetProperty("cmsBasic", out _));
         Assert.Equal("basic", root.GetProperty("components").GetProperty("securitySchemes").GetProperty("cmsBasic").GetProperty("scheme").GetString());
@@ -42,7 +42,8 @@ public sealed class OpenApiHttpTests
         Assert.True(consumers.GetProperty("security")[0].TryGetProperty("consumerBasic", out _));
         Assert.Equal(2, consumers.GetProperty("parameters").GetArrayLength());
         Assert.True(root.GetProperty("paths").GetProperty("/api/entities/{id}/disable").TryGetProperty("put", out _));
-        Assert.DoesNotContain("/health/", text);
+        Assert.True(root.GetProperty("paths").GetProperty("/health/ready").GetProperty("get").GetProperty("responses").TryGetProperty("503", out _));
+        Assert.True(operation.GetProperty("responses").TryGetProperty("429", out _));
         Assert.DoesNotContain(TestAccounts.CmsPassword, text);
     }
 
