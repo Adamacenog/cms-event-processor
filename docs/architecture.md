@@ -1,6 +1,6 @@
 # Architecture and processing contract
 
-**Status: approved design; application implementation has not started.**
+**Status: approved design. The host and authentication foundation are implemented; entity processing, SQL persistence, and the documented business/health endpoints remain pending.**
 
 ## Goals and scope
 
@@ -14,14 +14,31 @@ The assessment leaves architecture open. Our choices and assumptions are documen
 
 ## Components and dependencies
 
-| Project | Owns | References |
-| --- | --- | --- |
-| `CmsEventProcessor.Domain` | Entity lifecycle, event decisions, publication state, local override | No other solution project |
-| `CmsEventProcessor.Application` | Batch processing, queries, disabling, and purpose-specific persistence contracts | Domain |
-| `CmsEventProcessor.Infrastructure` | EF mappings/migrations, transactions, idempotency records, queries, database coordination | Application and Domain |
-| `CmsEventProcessor.Api` | Controllers, transport DTOs, authentication, authorization, request deadlines, composition | Application and Infrastructure |
+The solution contains three projects: the production host, unit tests, and integration tests. The production project uses folders and namespaces for these responsibilities:
 
-Add unit and integration test projects. Group application code by feature. Keep domain rules independent of HTTP and EF. Use explicit DTOs and dependency injection; do not introduce a generic repository framework, mediator library, broker, or separate microservice for this assessment.
+| Production area | Owns | Intended dependencies |
+| --- | --- | --- |
+| Domain | Planned entity lifecycle, event decisions, publication state, and local override | Runtime types only |
+| Application | Shared identity contracts/results; planned batch processing, queries, disabling, and persistence contracts | Domain |
+| Infrastructure | Identity storage, hashing, provisioning, and account validation; planned EF persistence and transactions | Application and Domain |
+| Api | HTTP authentication/options, command presentation, error handling; planned business controllers and request deadlines | Application contracts |
+| Root Program.cs | Host startup and composition | Api and Infrastructure registration |
+
+Both test projects reference the production project. Group application code by feature. Keep domain rules independent of HTTP and EF. Use explicit DTOs and dependency injection; do not introduce a generic repository framework, mediator library, broker, or separate microservice for this assessment.
+
+All three project directories sit directly beside `CmsEventProcessor.slnx` at the repository root, without `src` or `tests` wrappers. One production assembly keeps navigation, references, and delivery simple. Folders/namespaces express logical boundaries; they do not prevent cross-layer references at compile time. Maintain implementation dependency direction through review. Contract-signature tests protect the shared identity surface, not every method body or future domain dependency.
+
+### Shared identity boundaries
+
+Application exposes two small interfaces: `IAccountAuthenticator` and `IAccountProvisioner`. Their shared models describe account kinds, allowed trust scopes, trusted identities, and explicit one-time credential results. `AccountIdentity` contains only username and kind; neither authentication handlers nor provisioning results receive stored password hashes.
+
+Infrastructure owns its private `AccountDefinition` model, startup `AccountSettings` and validation, and the `AccountCatalog`, `PasswordHashService`, and `CredentialFile` implementations. Its identity implementations consume Application contracts and the framework's password-hashing/options services without using API or HTTP types. All production areas compile into the same ASP.NET Core host assembly. Unknown authentication scopes fail closed.
+
+The API's `Authentication` area contains its Basic handler, authorization policies, registration, and transport options. `ErrorHandling` owns sanitized HTTP responses. `Provisioning` owns command parsing and operator output. Both adapters consume Application interfaces; only root `Program.cs`, the composition root, connects Infrastructure registration. Account commands build their own non-running generic host and do not require configured accounts or start a web server.
+
+This applies SOLID pragmatically: responsibilities have clear owners, adapters depend on contracts, and authentication/provisioning interfaces remain separate. KISS limits the design to one production project, two test projects, and two useful identity interfaces; internal hashing/storage helpers do not need an interface merely to satisfy a pattern. Changing the implementation can preserve the adapter contracts without adding a generic repository, mediator, or extension framework.
+
+Boundary tests inspect authentication/provisioning contract signatures, including generic arguments, to reject HTTP/storage types, and verify that authentication results expose only identity and permissions. They replace the former assembly-reference checks; they do not claim full namespace dependency enforcement.
 
 ```mermaid
 flowchart TB

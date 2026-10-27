@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CmsEventProcessor/CmsEventProcessor.csproj" />
+  <Project Path="CmsEventProcessor.UnitTests/CmsEventProcessor.UnitTests.csproj" />
+  <Project Path="CmsEventProcessor.IntegrationTests/CmsEventProcessor.IntegrationTests.csproj" />
+</Solution>

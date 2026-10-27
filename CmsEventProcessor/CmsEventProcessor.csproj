@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>cms-event-processor-development</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CmsEventProcessor.UnitTests" />
+    <InternalsVisibleTo Include="CmsEventProcessor.IntegrationTests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="appsettings.Local.json;appsettings.*.Local.json;appsettings.local.json;appsettings.*.local.json"
+             CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+</Project>

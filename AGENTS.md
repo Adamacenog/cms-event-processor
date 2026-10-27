@@ -26,8 +26,13 @@ The delivery plan and requirements checklist are private working documents in th
 
 ## Implementation boundaries
 
+- Keep each class, record, enum, and DTO in its own file, including test support types. Add meaningful XML summaries to types and methods; test summaries must state the scenario and expected behavior. Document fields/properties/constants only when a particular constraint or behavior warrants explanation; avoid comments that merely restate their names.
+- Format every XML summary with its opening tag, descriptive text, and closing tag on separate `///` lines. Do not use single-line summaries.
+- Document method and constructor inputs with `<param>` tags, returned values with `<returns>` tags, and generic inputs with `<typeparam>` tags. For void methods, describe side effects instead of inventing a return value. Add `<exception>` tags for meaningful errors that can reach the caller; do not document exceptions handled within the method as propagated errors.
+- Keep exactly three project directories directly beside `CmsEventProcessor.slnx`: `CmsEventProcessor`, `CmsEventProcessor.UnitTests`, and `CmsEventProcessor.IntegrationTests`. The production project contains `Api`, `Application`, `Domain`, and `Infrastructure` folders, with `Program.cs` at its root. Do not introduce `src`/`tests` wrappers or separate production projects without agreement.
 - Target .NET 10, EF Core 10, and SQL Server. Keep the application portable across Windows and macOS with an external database where required.
-- Preserve Domain / Application / Infrastructure / API dependency boundaries described in `docs/architecture.md`.
+- Preserve Domain / Application / Infrastructure / API responsibilities and namespace dependency direction described in `docs/architecture.md`. These are logical boundaries within one production assembly, maintained through review; do not claim compile-time project isolation. Contract-signature tests cover the shared identity surface, not every implementation dependency.
+- Share identity contracts and safe results through `Application/Identity`; keep stored account definitions, hashing, file provisioning, and validation in `Infrastructure/Identity`. The API owns HTTP authentication/options, error handling, and command presentation. Only its composition root references Infrastructure registration; handlers/commands depend on Application interfaces. Keep the two purpose-specific identity interfaces; do not add an interface or generic framework for every class.
 - Process CMS batches within the HTTP request and commit before returning success. Use asynchronous database I/O, but do not introduce a hosted worker, durable inbox, scheduled retries, or a status-polling endpoint. Transient failures are retried by the caller using the same optional idempotency key and body.
 - Prioritize event correctness, durability, and restricted data access. Do not add a broker, cache, frontend, or separate service without an agreed change to the plan.
 - Treat all CMS payloads as confidential. Never commit credentials, log payloads or authorization headers, or enable EF sensitive-data logging in shared environments.
@@ -37,7 +42,7 @@ The delivery plan and requirements checklist are private working documents in th
 
 ## Verification and handoff
 
-- For documentation changes, check local links, JSON examples, requirement coverage, Mermaid syntax where tooling is available, and whitespace. No application tests exist at step 01.
+- For documentation changes, check local links, JSON examples, requirement coverage, Mermaid syntax where tooling is available, and whitespace. The foundation now has unit and HTTP integration tests; SQL integration tests arrive with persistence.
 - Once the solution exists, use the checked-in SDK/tool configuration and the commands documented in the README and CI. Verify formatting, Release build, relevant unit tests, and SQL-backed integration tests for affected behavior.
 - Use real SQL Server for SQL-specific behavior; in-memory tests do not prove transactions, locking, collation, migrations, or database recovery.
 - Keep all checks appropriate to the change. Report unavailable checks rather than marking them passed.

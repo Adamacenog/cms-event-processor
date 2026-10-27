@@ -1,0 +1,21 @@
+{
+  "Authentication": {
+    "Accounts": [
+      {
+        "Username": "cms-example01",
+        "PasswordHash": "<generated-by-accounts-init>",
+        "Kind": "Cms"
+      },
+      {
+        "Username": "reader-example",
+        "PasswordHash": "<generated-by-accounts-init>",
+        "Kind": "Reader"
+      },
+      {
+        "Username": "admin-example",
+        "PasswordHash": "<generated-by-accounts-init>",
+        "Kind": "Admin"
+      }
+    ]
+  }
+}
