@@ -1,2 +1,4 @@
+* text=auto eol=lf
+
 # Preserve the supplied assessment exactly, including its original line endings.
 docs/assessment/original.md -text
