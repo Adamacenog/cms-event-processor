@@ -5,13 +5,14 @@ using CmsEventProcessor.Api.ErrorHandling;
 using CmsEventProcessor.Api.Provisioning;
 using CmsEventProcessor.Application.Identity.Contracts;
 using CmsEventProcessor.Infrastructure.Identity;
+using CmsEventProcessor.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace CmsEventProcessor;
 
 /// <summary>
-/// Starts either explicit credential provisioning or the authenticated API foundation.
+/// Starts explicit credential provisioning or the authenticated host with configured SQL services.
 /// </summary>
 public partial class Program
 {
@@ -44,6 +45,7 @@ public partial class Program
         builder.Configuration.AddEnvironmentVariables().AddCommandLine(args);
 
         builder.Services.AddIdentityInfrastructure();
+        builder.Services.AddSqlPersistence();
         builder.Services.AddConfiguredAuthentication();
         builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
         {

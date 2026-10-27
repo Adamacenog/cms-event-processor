@@ -1,6 +1,6 @@
 # Architecture and processing contract
 
-**Status: approved design. The host, authentication foundation, and pure domain lifecycle rules are implemented; transactional batch processing, SQL persistence, and the documented business/health endpoints remain pending.**
+**Status: approved design. The host, authentication foundation, and pure domain lifecycle rules are implemented; SQL persistence and request-bound transactional services are implemented; the documented business/health endpoints remain pending.**
 
 ## Goals and scope
 
@@ -19,8 +19,8 @@ The solution contains three projects: the production host, unit tests, and integ
 | Production area | Owns | Intended dependencies |
 | --- | --- | --- |
 | Domain | Implemented entity lifecycle, event decisions, publication state, and local override | Runtime types only |
-| Application | Shared identity contracts/results; planned batch processing, queries, disabling, and persistence contracts | Domain |
-| Infrastructure | Identity storage, hashing, provisioning, and account validation; planned EF persistence and transactions | Application and Domain |
+| Application | Identity contracts/results, transactional batch processing, disabling, and mutation contracts; planned consumer queries | Domain |
+| Infrastructure | Identity storage/provisioning and EF persistence, migrations, SQL coordination, and replay storage | Application and Domain |
 | Api | HTTP authentication/options, command presentation, error handling; planned business controllers and request deadlines | Application contracts |
 | Root Program.cs | Host startup and composition | Api and Infrastructure registration |
 
@@ -108,7 +108,7 @@ Expired keys are ignored/replaced transactionally. Bounded opportunistic cleanup
 
 ## Entity lifecycle
 
-The [domain implementation guide](entity-lifecycle.md) maps these rules to the current source and unit tests. Transitions return proposed replacement state; they do not write a database or establish batch atomicity. SQL persistence and transaction-level evidence belong to the next implementation step.
+The [domain implementation guide](entity-lifecycle.md) maps these rules to the current source and unit tests. Domain transitions return proposed state without touching storage. The [transactional processing implementation](persistence.md) now persists these decisions and successful response metadata atomically, with direct real-SQL integration evidence; public HTTP/SQL behavior arrives with the webhook.
 
 Maintain separate values for `CmsPublished` and `AdminDisabled`:
 
@@ -173,7 +173,7 @@ Hard deletion applies to the entity snapshot. Successful replay results contain 
 
 ## Security and observability
 
-Use separate CMS and consumer Basic authentication schemes with server-side policy/role mapping. Generate GUID passwords; configure only hashes in untracked configuration or a secret provider. Usernames are unique and 10–20 characters long. No registration, user management, or re-enable endpoint is in scope.
+Use separate CMS and consumer Basic authentication schemes with server-side policy/role mapping. Generate GUID passwords; configure only hashes in untracked configuration or a secret provider. Usernames are unique and 10â€“20 characters long. No registration, user management, or re-enable endpoint is in scope.
 
 Provision the three initial accounts explicitly during setup, display their generated passwords once, and load their configured identities/hashes at application startup without creating or regenerating accounts. Adding accounts or rotating credentials updates configuration and takes effect after a restart. The full local/deployment lifecycle is documented in [authentication and credential setup](../README.md#authentication-and-credential-setup).
 

@@ -43,7 +43,9 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
             }
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Authentication:AllowInsecureLoopbackHttp"] = AllowLoopbackHttp.ToString()
+                ["Authentication:AllowInsecureLoopbackHttp"] = AllowLoopbackHttp.ToString(),
+                ["Persistence:WriteConnectionString"] = "Server=127.0.0.1;Database=FoundationProbe;Integrated Security=true;TrustServerCertificate=true",
+                ["Persistence:ReadConnectionString"] = "Server=127.0.0.1;Database=FoundationProbe;Integrated Security=true;TrustServerCertificate=true"
             });
         });
         builder.ConfigureServices(services =>
@@ -58,6 +60,7 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
             {
                 options.MinLevel = LogLevel.Trace;
                 options.Rules.Clear();
+                options.Rules.Add(new LoggerFilterRule(null, "Microsoft.EntityFrameworkCore", LogLevel.None, null));
             });
         });
     }

@@ -2,7 +2,7 @@
 
 A .NET service for receiving CMS events, maintaining the latest entity state, and exposing confidential content through an authenticated API.
 
-**Status: service foundation and domain lifecycle rules implemented; transactional processing is pending.** The host, account provisioning, Basic authentication, access policies, safe errors, unit/HTTP integration tests, CI definition, and container build are present. Pure domain transitions cover publication, ordering, deletion, and local overrides. SQL persistence and CMS, entity, and health endpoints are not implemented yet.
+**Status: SQL-backed transactional batch services implemented; public business endpoints are pending.** The host, account provisioning, Basic authentication, access policies, safe errors, unit/HTTP integration tests, CI definition, and container build are present. Pure domain transitions cover publication, ordering, deletion, and local overrides. SQL persistence, transactional processing, replay, and coordinated disabling are implemented and exercised directly through tests. CMS, entity, and health endpoints are not implemented yet.
 
 ## Start here
 
@@ -12,6 +12,7 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [Original assessment](docs/assessment/original.md) | Unmodified source supplied for the challenge |
 | [Architecture](docs/architecture.md) | Components, persistence, security, and processing guarantees |
 | [Domain lifecycle implementation](docs/entity-lifecycle.md) | Implemented state transitions, payload semantics, and unit-test evidence |
+| [SQL persistence and processing](docs/persistence.md) | Database setup, explicit migrations, transaction/replay behavior, and real SQL tests |
 | [API contract](docs/api.md) | Approved endpoint design, authentication, validation, and responses |
 | [Authentication and credential setup](#authentication-and-credential-setup) | Account provisioning, configuration, and credential rotation |
 | [Development and container setup](docs/development.md) | Configuration precedence, deployment secrets, and HTTPS container execution |
@@ -32,6 +33,7 @@ cms-event-processor/
       ErrorHandling/
       Provisioning/
     Application/
+      Processing/
       Identity/
         Contracts/
         Models/
@@ -40,6 +42,7 @@ cms-event-processor/
         Models/
         Services/
     Infrastructure/
+      Persistence/
       Identity/
         Models/
         Options/
@@ -107,7 +110,7 @@ The setup utility creates three preconfigured accounts. Their permissions are en
 | Reader | Read published entities that are not administratively disabled |
 | Administrator | Read all retained entities, disable them locally, and access health checks |
 
-For each account, setup generates a unique username of 10–20 characters and a random GUID password. It hashes the password using ASP.NET Core Identity's PBKDF2 implementation and saves the username, hash, and account kind in ignored local configuration. The account kind determines the authentication scheme and role/policy. Generated plaintext passwords are displayed once by the setup command so they can be saved securely and entered into private Postman environments. They are not saved in application logs or committed files.
+For each account, setup generates a unique username of 10ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ20 characters and a random GUID password. It hashes the password using ASP.NET Core Identity's PBKDF2 implementation and saves the username, hash, and account kind in ignored local configuration. The account kind determines the authentication scheme and role/policy. Generated plaintext passwords are displayed once by the setup command so they can be saved securely and entered into private Postman environments. They are not saved in application logs or committed files.
 
 At startup, the API loads and validates the configured accounts. It does not create accounts or regenerate passwords. Re-running initialization refuses to overwrite an existing file; account addition and rotation are explicit commands.
 
@@ -121,15 +124,24 @@ See the [access decision](docs/decisions/003-access-and-read-write-boundaries.md
 
 ## Running locally
 
-Install the .NET SDK pinned in [global.json](global.json), currently **10.0.301**. No database or Docker engine is needed for the foundation.
+Install the .NET SDK pinned in [global.json](global.json), currently **10.0.301**. Unit/HTTP foundation tests need no database engine. SQL integration tests use Docker or an explicitly configured test server. Follow the [SQL setup and migration guide](docs/persistence.md#local-sql-setup) for processing storage.
 
 From the repository root:
 
 ```sh
 dotnet restore CmsEventProcessor.slnx --locked-mode
+dotnet tool restore
 dotnet build CmsEventProcessor.slnx --configuration Release --no-restore
 cd CmsEventProcessor
 dotnet run --configuration Release --no-build --no-launch-profile -- accounts init --file appsettings.Local.json
+```
+
+Before starting the web host, configure both SQL connections in the ignored local configuration, preserving the generated Authentication section, and apply the [explicit migration command](docs/persistence.md#explicit-migration-command). Account initialization itself needs no SQL connection.
+
+After that configuration, run from the current CmsEventProcessor directory:
+
+```sh
+dotnet tool run dotnet-ef -- database update --project . --context WriteContext --configuration Release --no-build
 dotnet run --configuration Release --no-build --launch-profile local
 ```
 
@@ -155,11 +167,11 @@ dotnet format CmsEventProcessor.slnx --verify-no-changes --no-restore
 dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
 ```
 
-Domain unit tests cover ordering/publication/deletion decisions, semantic JSON content comparison, immutable state, and local overrides. Identity unit tests cover account generation, hashing, safe file updates, configuration validation, startup snapshots, and contract/result boundaries. HTTP integration tests run the actual middleware with isolated credentials and test-only routes, covering scheme/role boundaries, malformed headers, transport security, response/log privacy, missing configuration, and credential rotation after restart. SQL integration tests will arrive with persistence.
+Domain unit tests cover ordering/publication/deletion decisions, semantic JSON content comparison, immutable state, and local overrides. Identity unit tests cover account generation, hashing, safe file updates, configuration validation, startup snapshots, and contract/result boundaries. HTTP integration tests run the actual middleware with isolated credentials and test-only routes, covering scheme/role boundaries, malformed headers, transport security, response/log privacy, missing configuration, and credential rotation after restart. Real SQL tests verify atomic processing, replay, retention, concurrency, cancellation, failure boundaries, and migrations; see the [SQL test guide](docs/persistence.md#test-execution-and-evidence).
 
-Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and tests on Windows and Linux, then builds the container. Hosted CI results are available only after the branch is published.
+Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests before the application container build. Hosted CI results are available only after the branch is published.
 
-The final delivery will add SQL migrations, Docker Compose, and a Postman walkthrough. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers will need a remote SQL Server-compatible database once persistence is introduced. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
+SQL migrations and the SQL Compose service are present. The public webhook, consumer endpoints, and Postman walkthrough remain upcoming. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers will need a remote SQL Server-compatible database once persistence is introduced. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
 
 ## Delivery
 

@@ -1,4 +1,4 @@
-# ADR 001 — Synchronous transactional batch processing
+# ADR 001 - Synchronous transactional batch processing
 
 - **Context:** the assessment permits synchronous or asynchronous processing and prioritizes correctness, clarity, and a straightforward local setup. Bounded request sizes make synchronous transactional processing a practical choice.
 
@@ -33,7 +33,10 @@ The complete contract lives in [architecture](../architecture.md#synchronous-tra
 - The CMS must retry transient failures and ambiguous responses. There is no promise of automatic eventual completion or end-to-end exactly-once delivery.
 - There is no continuous queue polling or worker-driven minimum-replica requirement. Hosting still has cost and availability constraints.
 
-## Required evidence
+## Implementation and required evidence
+
+The [SQL processing guide](../persistence.md) describes the implemented transaction boundary, scoped response digests, expiry cleanup, cooperative deadlines, and conservative commit-uncertainty classification. Direct SQL tests cover this layer before the public webhook exists. The read/write contexts provide application-level separation; provider logs are suppressed to avoid disclosure of SQL exception values.
+
 
 Real SQL/HTTP tests cover commit-before-success, whole-batch rollback, concurrent ingestion/admin mutations, keyed request races, response loss after commit, cancellation before commit, commit uncertainty, database unavailability, and deadline handling. Verify expiry/cleanup and the absence of persisted submitted bodies. Measure request/transaction duration, lock contention, failures, and throughput.
 

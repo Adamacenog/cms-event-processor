@@ -29,12 +29,17 @@ jobs:
           global-json-file: global.json
       - name: Restore locked dependencies
         run: dotnet restore CmsEventProcessor.slnx --locked-mode
+      - name: Restore pinned migration tooling
+        run: dotnet tool restore
       - name: Verify formatting
         run: dotnet format CmsEventProcessor.slnx --verify-no-changes --no-restore
       - name: Release build
         run: dotnet build CmsEventProcessor.slnx --configuration Release --no-restore
       - name: Unit and HTTP integration tests
-        run: dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
+        run: dotnet test CmsEventProcessor.slnx --configuration Release --no-build --no-restore --filter "Category!=Sql" --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
+      - name: Real SQL Server integration tests
+        if: runner.os == 'Linux'
+        run: dotnet test CmsEventProcessor.IntegrationTests/CmsEventProcessor.IntegrationTests.csproj --configuration Release --no-build --no-restore --filter "Category=Sql" --logger trx --results-directory artifacts/test-results --collect "XPlat Code Coverage"
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -1,0 +1,10 @@
+{
+  "Persistence": {
+    "WriteConnectionString": "<provide the private write connection>",
+    "ReadConnectionString": "<provide the private read connection>"
+  },
+  "Processing": {
+    "Timeout": "00:00:30",
+    "LockWait": "00:00:05"
+  }
+}
