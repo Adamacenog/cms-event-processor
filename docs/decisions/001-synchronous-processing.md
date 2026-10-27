@@ -35,7 +35,7 @@ The complete contract lives in [architecture](../architecture.md#synchronous-tra
 
 ## Implementation and required evidence
 
-The [SQL processing guide](../persistence.md) describes the implemented transaction boundary, scoped response digests, expiry cleanup, cooperative deadlines, and conservative commit-uncertainty classification. Direct SQL tests cover this layer before the public webhook exists. The read/write contexts provide application-level separation; provider logs are suppressed to avoid disclosure of SQL exception values.
+The [SQL processing guide](../persistence.md) describes the implemented transaction boundary, scoped response digests, expiry cleanup, cooperative deadlines, and conservative commit-uncertainty classification. The [webhook guide](../webhook.md) describes implemented authenticated HTTP behavior and real SQL-backed boundary tests. The read/write contexts provide application-level separation; provider logs are suppressed to avoid disclosure of SQL exception values.
 
 
 Real SQL/HTTP tests cover commit-before-success, whole-batch rollback, concurrent ingestion/admin mutations, keyed request races, response loss after commit, cancellation before commit, commit uncertainty, database unavailability, and deadline handling. Verify expiry/cleanup and the absence of persisted submitted bodies. Measure request/transaction duration, lock contention, failures, and throughput.

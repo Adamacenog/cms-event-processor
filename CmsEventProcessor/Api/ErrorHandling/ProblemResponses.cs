@@ -26,7 +26,7 @@ internal static class ProblemResponses
         };
         problem.Type ??= "about:blank";
         problem.Extensions["traceId"] = context.TraceIdentifier;
-        return context.Response.WriteAsJsonAsync(problem, options: (JsonSerializerOptions?)null, contentType: "application/problem+json",
+        return context.Response.WriteAsJsonAsync((object)problem, options: (JsonSerializerOptions?)null, contentType: "application/problem+json",
             cancellationToken: context.RequestAborted);
     }
 }

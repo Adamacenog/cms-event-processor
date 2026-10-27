@@ -20,6 +20,8 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
     public bool AllowLoopbackHttp { get; init; }
     public string RemoteAddress { get; init; } = "127.0.0.1";
     public bool IncludeTestControllers { get; init; } = true;
+    public Dictionary<string, string?> Settings { get; init; } = new();
+    public Action<IServiceCollection>? ConfigureTestServices { get; init; }
     public CaptureLogger Logs { get; } = new();
 
     /// <summary>
@@ -47,6 +49,7 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
                 ["Persistence:WriteConnectionString"] = "Server=127.0.0.1;Database=FoundationProbe;Integrated Security=true;TrustServerCertificate=true",
                 ["Persistence:ReadConnectionString"] = "Server=127.0.0.1;Database=FoundationProbe;Integrated Security=true;TrustServerCertificate=true"
             });
+            configuration.AddInMemoryCollection(Settings);
         });
         builder.ConfigureServices(services =>
         {
@@ -62,6 +65,7 @@ internal sealed class FoundationFactory : WebApplicationFactory<Program>
                 options.Rules.Clear();
                 options.Rules.Add(new LoggerFilterRule(null, "Microsoft.EntityFrameworkCore", LogLevel.None, null));
             });
+            ConfigureTestServices?.Invoke(services);
         });
     }
 

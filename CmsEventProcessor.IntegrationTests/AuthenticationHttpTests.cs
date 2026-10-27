@@ -207,13 +207,12 @@ public sealed class AuthenticationHttpTests
     }
 
     /// <summary>
-    /// Without test assembly registration, probe routes and all future business/health endpoints return authenticated 404s.
+    /// Without test assembly registration, probe routes and pending consumer/health endpoints return authenticated 404s.
     /// </summary>
     /// <param name="path">The test-only or not-yet-implemented route whose absence is verified.</param>
     /// <returns>A task that completes after the production application rejects the unmapped route with 404.</returns>
     [Theory]
     [InlineData("/_test/consumer")]
-    [InlineData("/cms/events")]
     [InlineData("/api/entities")]
     [InlineData("/health/live")]
     public async Task ProductionHostDoesNotShipTestOrFutureEndpoints(string path)

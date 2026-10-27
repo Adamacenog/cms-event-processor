@@ -2,7 +2,7 @@
 
 A .NET service for receiving CMS events, maintaining the latest entity state, and exposing confidential content through an authenticated API.
 
-**Status: SQL-backed transactional batch services implemented; public business endpoints are pending.** The host, account provisioning, Basic authentication, access policies, safe errors, unit/HTTP integration tests, CI definition, and container build are present. Pure domain transitions cover publication, ordering, deletion, and local overrides. SQL persistence, transactional processing, replay, and coordinated disabling are implemented and exercised directly through tests. CMS, entity, and health endpoints are not implemented yet.
+**Status: authenticated CMS webhook implemented with transactional SQL processing.** `POST /cms/events` validates whole batches and returns final outcomes after commit, with optional scoped replay. Account provisioning, safe errors, generated OpenAPI, an executable Postman ingestion collection, unit/HTTP/SQL tests, CI, and container delivery are present. Consumer and health endpoints remain pending.
 
 ## Start here
 
@@ -14,6 +14,8 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [Domain lifecycle implementation](docs/entity-lifecycle.md) | Implemented state transitions, payload semantics, and unit-test evidence |
 | [SQL persistence and processing](docs/persistence.md) | Database setup, explicit migrations, transaction/replay behavior, and real SQL tests |
 | [API contract](docs/api.md) | Approved endpoint design, authentication, validation, and responses |
+| [Webhook implementation](docs/webhook.md) | Implemented request validation, error mapping, HTTP/SQL tests, and OpenAPI access |
+| [Postman ingestion walkthrough](docs/postman/README.md) | Seven executable synthetic requests and an empty-credential environment template |
 | [Authentication and credential setup](#authentication-and-credential-setup) | Account provisioning, configuration, and credential rotation |
 | [Development and container setup](docs/development.md) | Configuration precedence, deployment secrets, and HTTPS container execution |
 | [Architecture decisions](docs/decisions/001-synchronous-processing.md) | Rationale and tradeoffs for the processing approach; access and lifecycle decisions are linked from the architecture |
@@ -27,6 +29,12 @@ cms-event-processor/
   CmsEventProcessor.slnx
   CmsEventProcessor/
     Api/
+      Cms/
+        Controllers/
+        Dtos/
+        Services/
+        Validation/
+      Documentation/
       Authentication/
         Handlers/
         Options/
@@ -81,22 +89,23 @@ flowchart TB
     API -->|Administrator disable through write context| Store
 ```
 
-The planned webhook returns `200 OK` with final outcomes only after the batch commits. There is no background worker or status-polling endpoint in the design. Database calls will use `async`/`await`; synchronous processing means the response waits for completion, not that threads block on I/O.
+The webhook returns `200 OK` with final outcomes only after the batch commits, or replays an existing committed keyed result. There is no background worker or status-polling endpoint. Database calls use `async`/`await`; synchronous processing means the response waits for completion, not that threads block on I/O.
 
 The design prioritizes the difficult cases: unpublished revisions that were never published, delayed events, hard deletion, atomic batches, safe retries after a lost response, and administrator overrides that survive subsequent CMS publishes. Read the [architecture](docs/architecture.md) for the rules and their limitations.
 
-## Planned API
+## API availability
 
-All routes below are **approved design, not implemented**. The [API contract](docs/api.md) contains full behavior and examples.
+The [API contract](docs/api.md) contains behavior and examples. Ingestion and generated OpenAPI are implemented; other routes remain approved design.
 
-| Method | Route | Access | Purpose |
-| --- | --- | --- | --- |
-| POST | `/cms/events` | CMS | Process and commit a batch, returning final outcomes |
-| GET | `/api/entities` | Reader or administrator | List entities with role-based visibility |
-| GET | `/api/entities/{id}` | Reader or administrator | Read an entity with the same visibility rules |
-| PUT | `/api/entities/{id}/disable` | Administrator | Apply a persistent local disable |
-| GET | `/health/live` | Administrator | Check process availability |
-| GET | `/health/ready` | Administrator | Check database access and expected schema |
+| Method | Route | Access | Purpose | Status |
+| --- | --- | --- | --- | --- |
+| POST | `/cms/events` | CMS | Commit a batch and return final outcomes | Implemented |
+| GET | `/openapi/v1.json` | CMS | Download generated documentation of implemented ingestion | Implemented |
+| GET | `/api/entities` | Reader or administrator | List entities with role-based visibility | Planned |
+| GET | `/api/entities/{id}` | Reader or administrator | Read an entity with the same visibility rules | Planned |
+| PUT | `/api/entities/{id}/disable` | Administrator | Apply a persistent local disable | Planned |
+| GET | `/health/live` | Administrator | Check process availability | Planned |
+| GET | `/health/ready` | Administrator | Check database access and expected schema | Planned |
 
 ## Authentication and credential setup
 
@@ -110,13 +119,13 @@ The setup utility creates three preconfigured accounts. Their permissions are en
 | Reader | Read published entities that are not administratively disabled |
 | Administrator | Read all retained entities, disable them locally, and access health checks |
 
-For each account, setup generates a unique username of 10ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ20 characters and a random GUID password. It hashes the password using ASP.NET Core Identity's PBKDF2 implementation and saves the username, hash, and account kind in ignored local configuration. The account kind determines the authentication scheme and role/policy. Generated plaintext passwords are displayed once by the setup command so they can be saved securely and entered into private Postman environments. They are not saved in application logs or committed files.
+For each account, setup generates a unique username of 10-20 characters and a random GUID password. It hashes the password using ASP.NET Core Identity's PBKDF2 implementation and saves the username, hash, and account kind in ignored local configuration. The account kind determines the authentication scheme and role/policy. Generated plaintext passwords are displayed once by the setup command so they can be saved securely and entered into private Postman environments. They are not saved in application logs or committed files.
 
 At startup, the API loads and validates the configured accounts. It does not create accounts or regenerate passwords. Re-running initialization refuses to overwrite an existing file; account addition and rotation are explicit commands.
 
 Every protected request sends Basic credentials; ASP.NET Core authentication verifies the password against the configured hash, and authorization policies enforce the permissions above. Roles are configured server-side. An administrator account does not grant CMS ingestion access. External requests require HTTPS because Basic Authentication only Base64-encodes credentials. Development allows HTTP only from a loopback socket peer; forwarded headers cannot bypass that restriction.
 
-In Postman, select **Basic Auth** and supply the appropriate username and password from a private environment. A collection will be added with the business endpoints; shared templates will contain no credentials.
+In Postman, import the [ingestion collection and environment template](docs/postman/README.md), then supply the CMS username and password in a private environment. Shared templates contain no credentials. Consumer requests will be added with those endpoints.
 
 For deployment, load the same account definitions and password hashes from deployment secrets or environment-provided configuration. To add an account or rotate credentials, explicitly update the configuration and restart the application. A rotation generates and displays a new password, replaces its stored hash, and invalidates the previous password once the new configuration is loaded. There is no password-recovery endpoint; a lost password must be rotated.
 
@@ -145,7 +154,7 @@ dotnet tool run dotnet-ef -- database update --project . --context WriteContext 
 dotnet run --configuration Release --no-build --launch-profile local
 ```
 
-Save the three generated passwords securely when setup displays them. The local profile listens on `http://127.0.0.1:5080`. Missing or invalid account configuration prevents startup. An unauthenticated request to `/` receives `401`; a valid consumer identity receives `404` because no business routes are mapped yet. Integration tests add protected probe controllers from their own assembly; those routes are never shipped with the application.
+Save the three generated passwords securely when setup displays them. The local profile listens on `http://127.0.0.1:5080`. Missing or invalid account configuration prevents startup. An unauthenticated request to `/` receives `401`; a valid consumer identity receives `404` because that root route is not mapped. Submit the [synthetic batch example](docs/examples/cms-batch.json) to `POST /cms/events` using CMS Basic credentials and `Content-Type: application/json`, or run the Postman walkthrough. Integration tests add protected probe controllers from their own assembly; those routes are never shipped with the application.
 
 Stop the host before editing account configuration. From `CmsEventProcessor`, use either explicit operation and then restart:
 
@@ -171,7 +180,7 @@ Domain unit tests cover ordering/publication/deletion decisions, semantic JSON c
 
 Each type has its own file. Types and methods have multiline XML summaries; test summaries state the scenario and expected behavior. Method inputs, returned values, and meaningful propagated exceptions use XML documentation tags. Fields/properties receive notes only for particular constraints or behaviors. XML documentation is generated during builds, and missing public documentation fails the build. CI runs locked restore, formatting, Release build, and unit/HTTP tests on Windows and Linux. The Linux job additionally runs real SQL container tests before the application container build. Hosted CI results are available only after the branch is published.
 
-SQL migrations and the SQL Compose service are present. The public webhook, consumer endpoints, and Postman walkthrough remain upcoming. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers will need a remote SQL Server-compatible database once persistence is introduced. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
+The webhook and initial Postman ingestion walkthrough are available; consumer endpoints remain upcoming. SQL Server containers require an x86-64 Linux environment; Apple Silicon reviewers can configure a remote compatible SQL Server as described in the SQL guide. See [Microsoft's platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
 
 ## Delivery
 

@@ -26,6 +26,7 @@ The delivery plan and requirements checklist are private working documents in th
 ## Implementation boundaries
 
 - Keep each class, record, enum, and DTO in its own file, including test support types. Add meaningful XML summaries to types and methods; test summaries must state the scenario and expected behavior. Document fields/properties/constants only when a particular constraint or behavior warrants explanation; avoid comments that merely restate their names.
+- Place HTTP request/response DTOs in the feature's `Dtos` folder, such as `Api/Cms/Dtos`. Keep internal validation results with validation code rather than labeling them as transport DTOs.
 - Format every XML summary with its opening tag, descriptive text, and closing tag on separate `///` lines. Do not use single-line summaries.
 - Document method and constructor inputs with `<param>` tags, returned values with `<returns>` tags, and generic inputs with `<typeparam>` tags. For void methods, describe side effects instead of inventing a return value. Add `<exception>` tags for meaningful errors that can reach the caller; do not document exceptions handled within the method as propagated errors.
 - Keep exactly three project directories directly beside `CmsEventProcessor.slnx`: `CmsEventProcessor`, `CmsEventProcessor.UnitTests`, and `CmsEventProcessor.IntegrationTests`. The production project contains `Api`, `Application`, `Domain`, and `Infrastructure` folders, with `Program.cs` at its root. Do not introduce `src`/`tests` wrappers or separate production projects without agreement.
@@ -41,7 +42,7 @@ The delivery plan and requirements checklist are private working documents in th
 
 ## Verification and handoff
 
-- For documentation changes, check local links, JSON examples, requirement coverage, Mermaid syntax where tooling is available, and whitespace. The foundation now has unit and HTTP integration tests; SQL integration tests arrive with persistence.
+- For documentation changes, check local links, JSON examples, requirement coverage, Mermaid syntax where tooling is available, and whitespace. Unit, HTTP, and real SQL integration suites cover the implemented foundation, processing services, and webhook.
 - Once the solution exists, use the checked-in SDK/tool configuration and the commands documented in the README and CI. Verify formatting, Release build, relevant unit tests, and SQL-backed integration tests for affected behavior.
 - Use real SQL Server for SQL-specific behavior; in-memory tests do not prove transactions, locking, collation, migrations, or database recovery.
 - Keep all checks appropriate to the change. Report unavailable checks rather than marking them passed.
