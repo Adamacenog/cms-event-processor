@@ -207,14 +207,13 @@ public sealed class AuthenticationHttpTests
     }
 
     /// <summary>
-    /// Without test assembly registration, probe routes and pending health endpoints return authenticated 404s.
+    /// Without test assembly registration, protected probe routes are absent from the production application.
     /// </summary>
-    /// <param name="path">The test-only or not-yet-implemented route whose absence is verified.</param>
+    /// <param name="path">The test-only route whose absence is verified.</param>
     /// <returns>A task that completes after the production application rejects the unmapped route with 404.</returns>
     [Theory]
     [InlineData("/_test/consumer")]
-    [InlineData("/health/live")]
-    public async Task ProductionHostDoesNotShipTestOrFutureEndpoints(string path)
+    public async Task ProductionHostDoesNotShipTestEndpoints(string path)
     {
         await using var factory = new FoundationFactory { IncludeTestControllers = false };
         using var client = factory.Client();

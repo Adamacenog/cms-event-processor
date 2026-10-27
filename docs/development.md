@@ -48,6 +48,10 @@ On Linux, owner-only host files may require running the container with the host 
 
 Access `https://localhost:8443`. Trust the development certificate using your platform's development-certificate workflow when necessary. This is development setup; a shared deployment needs an appropriately trusted certificate and deployment-managed secrets.
 
+## Operational configuration
+
+The [operations guide](operations.md) documents the protected probes, validated budgets, actual-peer request limit, optional OTLP collector configuration, and graceful shutdown. Export is off by default. Use private configuration or environment overrides; run migrations explicitly before expecting ready status. Configure a platform termination grace period longer than the host shutdown budget. The reproducible load script needs Python 3.10+ and privately supplied CMS credentials.
+
 ## Verification boundaries
 
 Unit and HTTP foundation suites do not require SQL Server or Docker when filtered with Category!=Sql. The HTTP suite validates the actual pipeline through `WebApplicationFactory`, while only the test assembly supplies probe controllers. These checks alone do not establish SQL transaction behavior. The SQL cases require Docker or CMS_TEST_SQL_CONNECTION and separately verify transactions, migrations, and failure behavior, as documented in the [SQL test guide](persistence.md#test-execution-and-evidence). A working hosted deployment remains a later deliverable.

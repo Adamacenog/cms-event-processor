@@ -97,7 +97,7 @@ dotnet tool run dotnet-ef -- database update --project CmsEventProcessor --conte
 
 The design factory reads CMS_MIGRATION_CONNECTION first. Otherwise, it reads the writer from ignored local JSON or Persistence__WriteConnectionString. EF sets the working directory to the startup project, so the normal private file is CmsEventProcessor/appsettings.Local.json. The command works from the repository root or project directory, requires no API accounts, and never starts the web host. For a separate mounted/private folder, append -- --configuration-directory <absolute-folder>; the SQL tests use that option to avoid a developer's real configuration. Do not run database updates without explicitly configuring the intended writer/migration connection; the fallback connection exists for schema generation.
 
-Web startup validates read/write connection shapes but never creates/migrates a database or assumes storage is healthy. Normal host credentials and SQL readiness are distinct concerns. Run migrations before exercising processing. Missing schema/database access results in an unavailable processing attempt.
+Web startup validates read/write connection shapes but never creates/migrates a database or assumes storage is healthy. Normal host credentials and SQL readiness are distinct concerns. The administrator [readiness probe](operations.md#health-and-graceful-shutdown) checks both connections, migration history, and actual required columns without repair; its writer also needs SELECT on __EFMigrationsHistory. Run migrations before exercising processing. Missing schema/database access results in an unavailable processing attempt.
 
 To add later schema changes:
 

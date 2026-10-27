@@ -1,5 +1,7 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Text.Json;
+using CmsEventProcessor.Application.Observability;
 using CmsEventProcessor.Application.Processing.Contracts;
 using CmsEventProcessor.Application.Processing.Exceptions;
 using CmsEventProcessor.Application.Processing.Models;
@@ -17,13 +19,20 @@ namespace CmsEventProcessor.Infrastructure.Persistence.Services;
 /// <param name="context">The dedicated writer context disposed with this transaction.</param>
 /// <param name="transaction">The transaction owning every operation and the application lock.</param>
 /// <param name="logger">The logger receiving cleanup failure types without SQL values or exception messages.</param>
+/// <param name="telemetry">The fixed-name transaction/lock instruments.</param>
 internal sealed class SqlMutationTransaction(WriteContext context, IDbContextTransaction transaction,
-    ILogger<SqlMutationTransaction> logger) : IMutationTransaction
+    ILogger<SqlMutationTransaction> logger, OperationTelemetry telemetry) : IMutationTransaction
 {
     public const string LockResource = "CmsEventProcessor:Mutation:v1";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private bool ownsMutation;
     private bool committed;
+    private bool commitAttempted;
+    private bool lockAttempted;
+    private int? lockCode;
+    private double lockSeconds;
+    private readonly long started = Stopwatch.GetTimestamp();
+    private readonly OperationObservation observation = telemetry.Begin("transaction", CancellationToken.None);
 
     /// <summary>
     /// Checks every application-lock return code and refuses state access after unsuccessful acquisition.
@@ -52,8 +61,13 @@ internal sealed class SqlMutationTransaction(WriteContext context, IDbContextTra
         timeout.ParameterName = "@wait";
         timeout.Value = (int)Math.Clamp(Math.Ceiling(wait.TotalMilliseconds), 0, int.MaxValue);
         command.Parameters.Add(timeout);
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        ownsMutation = result is int code && code >= 0;
+        lockAttempted = true;
+        var lockStarted = Stopwatch.GetTimestamp();
+        object? result;
+        try { result = await command.ExecuteScalarAsync(cancellationToken); }
+        finally { lockSeconds = Stopwatch.GetElapsedTime(lockStarted).TotalSeconds; }
+        lockCode = result is int code ? code : null;
+        ownsMutation = lockCode >= 0;
         return ownsMutation;
     }
 
@@ -214,6 +228,7 @@ internal sealed class SqlMutationTransaction(WriteContext context, IDbContextTra
     public async Task CommitAsync(CancellationToken cancellationToken)
     {
         RequireOwnership();
+        commitAttempted = true;
         await transaction.CommitAsync(cancellationToken);
         committed = true;
     }
@@ -248,7 +263,13 @@ internal sealed class SqlMutationTransaction(WriteContext context, IDbContextTra
             }
             finally
             {
-                await context.DisposeAsync();
+                try { await context.DisposeAsync(); }
+                finally
+                {
+                    telemetry.RecordTransaction(Stopwatch.GetElapsedTime(started).TotalSeconds, lockSeconds, lockCode, commitAttempted, committed, lockAttempted);
+                    observation.SetOutcome(committed ? "Succeeded" : commitAttempted ? "CommitUnknown" : "RolledBack");
+                    observation.Dispose();
+                }
             }
         }
     }

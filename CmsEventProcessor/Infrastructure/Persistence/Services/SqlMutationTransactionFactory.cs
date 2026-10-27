@@ -1,3 +1,4 @@
+using CmsEventProcessor.Application.Observability;
 using CmsEventProcessor.Application.Processing.Contracts;
 using CmsEventProcessor.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +10,9 @@ namespace CmsEventProcessor.Infrastructure.Persistence.Services;
 /// </summary>
 /// <param name="contexts">The configured writer context factory.</param>
 /// <param name="logger">The safe cleanup diagnostic logger.</param>
+/// <param name="telemetry">The numeric transaction/lock instrument owner.</param>
 internal sealed class SqlMutationTransactionFactory(IDbContextFactory<WriteContext> contexts,
-    ILogger<SqlMutationTransaction> logger) : IMutationTransactionFactory
+    ILogger<SqlMutationTransaction> logger, OperationTelemetry telemetry) : IMutationTransactionFactory
 {
     /// <summary>
     /// Begins a cancellation-aware transaction without executing migrations or retrying failed work.
@@ -25,7 +27,7 @@ internal sealed class SqlMutationTransactionFactory(IDbContextFactory<WriteConte
         try
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-            return new SqlMutationTransaction(context, transaction, logger);
+            return new SqlMutationTransaction(context, transaction, logger, telemetry);
         }
         catch
         {

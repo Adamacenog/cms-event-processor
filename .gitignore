@@ -59,6 +59,8 @@ docs/postman/*.private.postman_environment.json
 
 # Optional local tooling and temporary working files
 node_modules/
+__pycache__/
+*.py[cod]
 .codex/
 .tmp/
 tmp/

@@ -1,5 +1,6 @@
 using CmsEventProcessor.Api.Cms;
 using CmsEventProcessor.Api.Cms.Dtos;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -24,7 +25,7 @@ internal sealed class ApiOpenApiTransformer : IOpenApiDocumentTransformer
         {
             Title = "CMS Event Processor",
             Version = "v1",
-            Description = "Synchronous CMS ingestion, role-aware current entities, and administrator disabling. Health endpoints are not available yet."
+            Description = "Synchronous CMS ingestion, role-aware entities, administrator disabling, protected health checks, and bounded pre-authentication attempts."
         };
         document.Servers = [];
         document.Components ??= new OpenApiComponents();
@@ -40,10 +41,25 @@ internal sealed class ApiOpenApiTransformer : IOpenApiDocumentTransformer
             {
                 Type = SecuritySchemeType.Http,
                 Scheme = "basic",
-                Description = "Preconfigured reader or administrator credentials. Disabling requires the server-configured administrator role."
+                Description = "Preconfigured reader or administrator credentials. Disabling and health checks require the server-configured administrator role."
             }
         };
-        foreach (var (route, item) in document.Paths.Where(entry => entry.Key.StartsWith("/api/entities", StringComparison.Ordinal)))
+        var rateSchema = await context.GetOrCreateSchemaAsync(typeof(ProblemDetails), null, cancellationToken);
+        foreach (var item in document.Paths.Values)
+        {
+            if (item.Operations is null) continue;
+            foreach (var action in item.Operations.Values)
+            {
+                action.Responses ??= new OpenApiResponses();
+                action.Responses["429"] = new OpenApiResponse
+                {
+                    Description = "Actual socket peer exceeded the pre-authentication limit; no request is queued.",
+                    Content = new Dictionary<string, OpenApiMediaType> { ["application/problem+json"] = new() { Schema = rateSchema } }
+                };
+            }
+        }
+        foreach (var (route, item) in document.Paths.Where(entry => entry.Key.StartsWith("/api/entities", StringComparison.Ordinal) ||
+            entry.Key.StartsWith("/health/", StringComparison.Ordinal)))
         {
             if (item.Operations is null) continue;
             foreach (var (method, action) in item.Operations)
@@ -53,6 +69,9 @@ internal sealed class ApiOpenApiTransformer : IOpenApiDocumentTransformer
                     "Administrator only. No body. Waits for coordinated commit; changes only the local disable flag. Repeat disable is idempotent. " +
                     "A 503 around commit is uncertain; caller may repeat this idempotent operation." :
                     "Reader sees only cmsPublished && !adminDisabled; administrator sees all retained snapshots. Hidden/missing/deleted lookup returns 404.";
+                if (route.StartsWith("/health/", StringComparison.Ordinal)) action.Description = route.EndsWith("live", StringComparison.Ordinal) ?
+                    "Administrator only. Minimal process liveness; no database probe or dependency information." :
+                    "Administrator only. Minimal readiness after bounded checks of both connections, expected migration history, and actual required columns; unavailable during shutdown.";
                 if (route == "/api/entities" && method == HttpMethod.Get)
                 {
                     action.Parameters ??= [];

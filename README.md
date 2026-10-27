@@ -2,7 +2,7 @@
 
 A .NET service for receiving CMS events, maintaining the latest entity state, and exposing confidential content through an authenticated API.
 
-**Status: CMS ingestion, role-aware consumer reads, and administrator disabling are implemented.** Whole batches commit before success, with optional scoped replay. Consumer reads use bounded no-tracking SQL projections and cursor pagination; local overrides survive CMS publication. Provisioning, safe errors, OpenAPI, Postman, tests, CI, and container delivery are present. Health, telemetry, and rate limiting remain upcoming operational work.
+**Status: CMS ingestion, role-aware consumer reads, and administrator disabling are implemented.** Whole batches commit before success, with optional scoped replay. Consumer reads use bounded no-tracking SQL projections and cursor pagination; local overrides survive CMS publication. Provisioning, safe errors, OpenAPI, Postman, tests, CI, and container delivery are present. Administrator health checks, custom OpenTelemetry with optional export, pre-authentication rate limiting, and measured operational recovery are implemented.
 
 ## Start here
 
@@ -16,6 +16,8 @@ A .NET service for receiving CMS events, maintaining the latest entity state, an
 | [API contract](docs/api.md) | Approved endpoint design, authentication, validation, and responses |
 | [Webhook implementation](docs/webhook.md) | Implemented request validation, error mapping, HTTP/SQL tests, and OpenAPI access |
 | [Consumer implementation](docs/consumers.md) | Visibility, pagination, local disabling, read/write separation, and SQL evidence |
+| [Operations and troubleshooting](docs/operations.md) | Protected health, rate limits, sanitized telemetry, shutdown, and recovery |
+| [Measured workload](docs/performance.md) | Reproducible synthetic workload and actual request/transaction/lock measurements |
 | [Postman walkthrough](docs/postman/README.md) | Executable CMS/reader/admin scenarios with empty shared credentials |
 | [Authentication and credential setup](#authentication-and-credential-setup) | Account provisioning, configuration, and credential rotation |
 | [Development and container setup](docs/development.md) | Configuration precedence, deployment secrets, and HTTPS container execution |
@@ -44,6 +46,8 @@ cms-event-processor/
       Authentication/
         Handlers/
         Options/
+      Health/
+      Operations/
       ErrorHandling/
       Provisioning/
     Application/
@@ -51,6 +55,8 @@ cms-event-processor/
         Contracts/
         Exceptions/
         Models/
+      Operations/
+      Observability/
       Processing/
       Identity/
         Contracts/
@@ -69,19 +75,21 @@ cms-event-processor/
   CmsEventProcessor.UnitTests/
   CmsEventProcessor.IntegrationTests/
   docs/
+  scripts/
 ```
 
 The production folders separate responsibilities within a single assembly. Authentication and provisioning share the Application identity contracts and safe results. Infrastructure owns configured account hashes, verification, and file updates. The API adapts those contracts to Basic Authentication and account commands; `Program.cs` connects implementations through dependency injection. Domain owns the pure entity lifecycle rules, immutable snapshots, and content-free deletion markers.
 
 Folder and namespace boundaries are maintained through review rather than separate project references. Tests check that shared identity contract signatures exclude HTTP/storage types and that authentication results contain no stored hashes. See the [identity boundaries](docs/architecture.md#shared-identity-boundaries) for the design rationale.
 
-## Planned stack
+## Technology stack
 
 - .NET 10 and ASP.NET Core.
 - Entity Framework Core 10 and Microsoft SQL Server 2022 Developer for local development.
 - Synchronous batch processing with one SQL transaction per request.
 - Separate read/write contexts and CMS/consumer authentication policies.
 - Unit tests, real SQL Server integration tests, and a Postman acceptance walkthrough.
+- Custom OpenTelemetry metrics/traces with optional HTTP/protobuf export.
 - Docker for local delivery; an optional temporary HTTPS tunnel for demonstrations.
 
 The assessment permits .NET 9 or above. .NET 10 is our selected LTS target, rather than an alteration to the original requirement. See the [Microsoft support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
@@ -105,7 +113,7 @@ The design prioritizes the difficult cases: unpublished revisions that were neve
 
 ## API availability
 
-The [API contract](docs/api.md) contains behavior and examples. Business endpoints and generated OpenAPI are implemented; health routes remain approved design.
+The [API contract](docs/api.md) contains behavior and examples. All listed routes are implemented, including protected health checks.
 
 | Method | Route | Access | Purpose | Status |
 | --- | --- | --- | --- | --- |
@@ -114,14 +122,14 @@ The [API contract](docs/api.md) contains behavior and examples. Business endpoin
 | GET | `/api/entities` | Reader or administrator | List entities with role-based visibility | Implemented |
 | GET | `/api/entities/{id}` | Reader or administrator | Read an entity with the same visibility rules | Implemented |
 | PUT | `/api/entities/{id}/disable` | Administrator | Apply a persistent local disable | Implemented |
-| GET | `/health/live` | Administrator | Check process availability | Planned |
-| GET | `/health/ready` | Administrator | Check database access and expected schema | Planned |
+| GET | `/health/live` | Administrator | Check process availability | Implemented |
+| GET | `/health/ready` | Administrator | Check database access and expected schema | Implemented |
 
 ## Authentication and credential setup
 
 Accounts are provisioned explicitly through the implemented setup command. There is no registration, login/token endpoint, separate authentication service, or user database.
 
-The setup utility creates three preconfigured accounts. Business permissions are enforced by policies; administrator health access remains planned:
+The setup utility creates three preconfigured accounts. Business and administrator health permissions are enforced by policies:
 
 | Account | Permissions |
 | --- | --- |
