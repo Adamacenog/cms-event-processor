@@ -1,6 +1,6 @@
 # Architecture and processing contract
 
-**Status: approved design. The host and authentication foundation are implemented; entity processing, SQL persistence, and the documented business/health endpoints remain pending.**
+**Status: approved design. The host, authentication foundation, and pure domain lifecycle rules are implemented; transactional batch processing, SQL persistence, and the documented business/health endpoints remain pending.**
 
 ## Goals and scope
 
@@ -18,7 +18,7 @@ The solution contains three projects: the production host, unit tests, and integ
 
 | Production area | Owns | Intended dependencies |
 | --- | --- | --- |
-| Domain | Planned entity lifecycle, event decisions, publication state, and local override | Runtime types only |
+| Domain | Implemented entity lifecycle, event decisions, publication state, and local override | Runtime types only |
 | Application | Shared identity contracts/results; planned batch processing, queries, disabling, and persistence contracts | Domain |
 | Infrastructure | Identity storage, hashing, provisioning, and account validation; planned EF persistence and transactions | Application and Domain |
 | Api | HTTP authentication/options, command presentation, error handling; planned business controllers and request deadlines | Application contracts |
@@ -108,6 +108,8 @@ Expired keys are ignored/replaced transactionally. Bounded opportunistic cleanup
 
 ## Entity lifecycle
 
+The [domain implementation guide](entity-lifecycle.md) maps these rules to the current source and unit tests. Transitions return proposed replacement state; they do not write a database or establish batch atomicity. SQL persistence and transaction-level evidence belong to the next implementation step.
+
 Maintain separate values for `CmsPublished` and `AdminDisabled`:
 
 ```text
@@ -149,7 +151,7 @@ The schema supplies neither event IDs nor a version on deletes. Reliable orderin
 
 | Record | Minimum responsibility |
 | --- | --- |
-| Entity snapshot | Unique source ID, JSON payload, latest version, accepted CMS timestamp/type, CMS publication flag, admin override, and concurrency token |
+| Entity snapshot | Unique source ID, JSON payload, latest version, accepted CMS timestamp, CMS publication flag, admin override, and concurrency token |
 | Deletion marker | Unique source ID and latest delete timestamp; no payload or consumer-visible entity data |
 | Successful idempotency result | CMS principal ID plus unique key, request-body hash, batch correlation ID, final response metadata, completion/expiry timestamps; no submitted body or entity payload |
 
