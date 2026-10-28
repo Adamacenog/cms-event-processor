@@ -56,7 +56,7 @@ After transport validation, start with one small bounded replica configuration a
 
 ## Cost and availability assumptions
 
-The assessment does not require paid hosting. The local temporary demonstration is the selected way to avoid provisioning cloud services; **US$5 is a demo spending ceiling, not an Azure price promise**. No resources are provisioned here.
+The assessment does not require cloud deployment. This guide documents a local temporary demonstration and investigated Azure hosting alternatives; no cloud resources have been provisioned and no hosting estimate is claimed.
 
 Container Apps Consumption has monthly grants and usage-based charges, but registry, logs, networking, and SQL can add separate costs. VM hosting also has compute, disk, IP/network, and database costs. Build an estimate using the actual region, subscription, duration, traffic, retention, and replica configuration. Recheck [Container Apps pricing](https://azure.microsoft.com/en-us/pricing/details/container-apps/) and the [Azure pricing calculator](https://azure.microsoft.com/en-us/pricing/calculator/) before provisioning.
 
