@@ -9,18 +9,24 @@ namespace CmsEventProcessor.IntegrationTests.Webhook;
 public sealed class SwaggerUiHttpTests
 {
     /// <summary>
-    /// Every configured account can open the UI, load its local assets, and retrieve the existing protected specification.
+    /// Development documentation loads without credentials, with invalid credentials, or with any configured account.
     /// </summary>
-    /// <param name="kind">The CMS, reader, or administrator identity opening documentation.</param>
+    /// <param name="kind">The missing/invalid credential scenario or configured identity opening documentation.</param>
     /// <returns>A task completing after the redirect, assets, safe configuration, and specification are verified.</returns>
     [Theory]
+    [InlineData("missing")]
+    [InlineData("malformed")]
+    [InlineData("wrong")]
     [InlineData("cms")]
     [InlineData("reader")]
     [InlineData("admin")]
-    public async Task DevelopmentUiAcceptsAllDocumentationIdentities(string kind)
+    public async Task DevelopmentDocumentationDoesNotRequireAuthentication(string kind)
     {
         await using var factory = new FoundationFactory { EnvironmentName = "Development" };
-        using var client = Client(factory, kind);
+        using var client = factory.Client();
+        if (kind == "malformed") client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Basic not-base64!");
+        else if (kind != "missing") AuthenticationHttpTests.SetCredentials(client, TestAccounts.Username(kind == "wrong" ? "reader" : kind),
+            kind == "wrong" ? "incorrect-password" : TestAccounts.Password(kind));
         foreach (var route in new[] { "/swagger", "/swagger/" })
         {
             using var redirect = await client.GetAsync(route);
@@ -34,6 +40,7 @@ public sealed class SwaggerUiHttpTests
         {
             using var asset = await client.GetAsync(route);
             Assert.Equal(200, (int)asset.StatusCode);
+            Assert.Empty(asset.Headers.WwwAuthenticate);
             Assert.Contains("no-store", asset.Headers.CacheControl?.ToString());
             var text = await asset.Content.ReadAsStringAsync();
             Assert.NotEmpty(text);
@@ -53,33 +60,36 @@ public sealed class SwaggerUiHttpTests
 
         using var specification = await client.GetAsync("/openapi/v1.json");
         Assert.Equal(200, (int)specification.StatusCode);
+        Assert.Empty(specification.Headers.WwwAuthenticate);
         using var document = JsonDocument.Parse(await specification.Content.ReadAsStringAsync());
         Assert.Equal(6, document.RootElement.GetProperty("paths").EnumerateObject().Count());
         Assert.DoesNotContain("swagger", document.RootElement.GetProperty("paths").ToString());
     }
 
     /// <summary>
-    /// Missing, malformed, and incorrect credentials cannot retrieve any development UI asset or its specification.
+    /// Anonymous documentation viewing does not allow anonymous ingestion, consumer reads, administrator actions, or unknown routes.
     /// </summary>
-    /// <param name="credentials">The unauthenticated or invalid credential scenario.</param>
-    /// <returns>A task completing after every documentation resource returns a safe Basic challenge.</returns>
+    /// <param name="method">The protected request's HTTP method.</param>
+    /// <param name="route">The business or unknown route that must retain authentication.</param>
+    /// <returns>A task completing after documentation loads and the protected request receives a safe Basic challenge.</returns>
     [Theory]
-    [InlineData("missing")]
-    [InlineData("malformed")]
-    [InlineData("wrong")]
-    public async Task DocumentationRequiresValidCredentials(string credentials)
+    [InlineData("POST", "/cms/events")]
+    [InlineData("GET", "/api/entities")]
+    [InlineData("GET", "/api/entities/article-001")]
+    [InlineData("PUT", "/api/entities/article-001/disable")]
+    [InlineData("GET", "/health/live")]
+    [InlineData("GET", "/health/ready")]
+    [InlineData("GET", "/swagger-other")]
+    public async Task AnonymousDocumentationDoesNotAllowAnonymousBusinessRequests(string method, string route)
     {
         await using var factory = new FoundationFactory { EnvironmentName = "Development" };
         using var client = factory.Client();
-        if (credentials == "malformed") client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Basic not-base64!");
-        if (credentials == "wrong") AuthenticationHttpTests.SetCredentials(client, TestAccounts.Username("reader"), "incorrect-password");
-        foreach (var route in new[] { "/swagger", "/swagger/index.html", "/swagger/index.js", "/swagger/swagger-ui.css",
-            "/swagger/swagger-ui-bundle.js", "/swagger/swagger-ui-standalone-preset.js", "/openapi/v1.json" })
-        {
-            using var response = await client.GetAsync(route);
-            await ProblemAsync(response, 401, factory);
-            Assert.Contains(response.Headers.WwwAuthenticate, header => header.Scheme == "Basic");
-        }
+        using var ui = await client.GetAsync("/swagger/index.html");
+        Assert.Equal(200, (int)ui.StatusCode);
+        using var request = new HttpRequestMessage(new HttpMethod(method), route);
+        using var response = await client.SendAsync(request);
+        await ProblemAsync(response, 401, factory);
+        Assert.Contains(response.Headers.WwwAuthenticate, header => header.Scheme == "Basic");
     }
 
     /// <summary>
@@ -103,6 +113,11 @@ public sealed class SwaggerUiHttpTests
         }
         using var specification = await client.GetAsync("/openapi/v1.json");
         Assert.Equal(200, (int)specification.StatusCode);
+        client.DefaultRequestHeaders.Authorization = null;
+        using var anonymousSpecification = await client.GetAsync("/openapi/v1.json");
+        await ProblemAsync(anonymousSpecification, 401, factory);
+        using var anonymousUi = await client.GetAsync("/swagger/index.html");
+        await ProblemAsync(anonymousUi, 401, factory);
     }
 
     /// <summary>
@@ -144,7 +159,6 @@ public sealed class SwaggerUiHttpTests
             RemoteAddress = "192.0.2.1"
         };
         using var client = factory.Client("http");
-        AuthenticationHttpTests.SetCredentials(client, TestAccounts.Username("reader"), TestAccounts.ReaderPassword);
         using var response = await client.GetAsync("/swagger/index.html");
         await ProblemAsync(response, 400, factory);
     }

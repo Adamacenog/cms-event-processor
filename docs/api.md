@@ -1,11 +1,11 @@
 # API contract
 
-**Status: ingestion, consumer listing/lookup, administrator disabling, and authenticated OpenAPI are implemented.** Administrator health and pre-authentication request limits are implemented; see the [operations guide](operations.md). See the [webhook](webhook.md), [consumer](consumers.md), and [Postman](postman/README.md) guides.
+**Status: ingestion, consumer listing/lookup, administrator disabling, and generated OpenAPI are implemented.** Development Swagger/OpenAPI viewing is anonymous; API calls remain authenticated. Administrator health and pre-authentication request limits are implemented; see the [operations guide](operations.md). See the [webhook](webhook.md), [consumer](consumers.md), and [Postman](postman/README.md) guides.
 
 ## Common behavior
 
 - JSON request/response field names use camel case. Requests containing bodies use `Content-Type: application/json`.
-- All endpoints require authentication. External requests use HTTPS; local loopback HTTP is limited to development and the tunnel connector.
+- All business and health endpoints require authentication. Development Swagger/OpenAPI viewing is anonymous; OpenAPI remains authenticated in other environments. External requests use HTTPS; local loopback HTTP is limited to development and the tunnel connector.
 - Requests supply `Authorization: Basic <base64(username:password)>`. Base64 is encoding, not encryption. Credentials are generated locally or shared privately, never embedded in documentation or committed Postman environments.
 - Accounts are provisioned through setup configuration, not a registration or login endpoint. See [authentication and credential setup](../README.md#authentication-and-credential-setup) for initial provisioning, startup loading, deployment secrets, and rotation.
 - CMS and consumer authentication are separate. Reader/admin roles come from server-side configuration.
@@ -26,6 +26,8 @@ Every transport-valid request consumes the actual socket peer's process-local fi
 | Disable entity | No | No | Yes |
 | Health checks | No | No | Yes |
 | Generated OpenAPI reference | Yes | Yes | Yes |
+
+In Development, anonymous callers can also view the generated OpenAPI reference and `/swagger`; this grants no access to business or health operations.
 
 There is no processing-status endpoint. Idempotency results are returned only by repeating the webhook request under the same CMS identity and key.
 
@@ -137,7 +139,7 @@ Example validation response, with fixed field names and no submitted values:
 
 ## GET /openapi/v1.json
 
-Implemented generated OpenAPI covers ingestion, consumer actions, health checks, and their transport DTOs. Any configured CMS, reader, or administrator account may retrieve it; missing/invalid credentials receive 401. Documentation access grants no additional business permissions. Operations declare CMS Basic or consumer Basic security, with administrator-only disabling described explicitly. Responses use no-store; test controllers are excluded. All operations document 429, and health operations require administrators. Download/import the document into a client, or use the authenticated [Swagger UI in Development](development.md#interactive-api-documentation) at `/swagger`. The UI reuses `/openapi/v1.json` and is absent in other environments. Conditional input schemas, paging bounds, and response shapes are generated/refined from actual types, with byte/depth/duplicate/replay rules described alongside the schemas.
+Implemented generated OpenAPI covers ingestion, consumer actions, health checks, and their transport DTOs. In Development, the document allows anonymous viewing so Swagger can load without sign-in. In other environments, any configured CMS, reader, or administrator account may retrieve it; missing/invalid credentials receive 401. Documentation access grants no additional business permissions. Operations declare CMS Basic or consumer Basic security, with administrator-only disabling described explicitly. Responses use no-store; test controllers are excluded. All operations document 429, and health operations require administrators. Download/import the document into a client, or use [Swagger UI in Development](development.md#interactive-api-documentation) at `/swagger`. The UI reuses `/openapi/v1.json` and is absent in other environments. Conditional input schemas, paging bounds, and response shapes are generated/refined from actual types, with byte/depth/duplicate/replay rules described alongside the schemas.
 
 ## GET /api/entities
 
