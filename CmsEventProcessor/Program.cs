@@ -117,7 +117,23 @@ public partial class Program
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
-        app.MapOpenApi().RequireAuthorization(AccessPolicies.Documentation);
+        var documentation = app.MapOpenApi();
+        if (app.Environment.IsDevelopment())
+        {
+            documentation.AllowAnonymous();
+            app.MapSwaggerUI("swagger", options =>
+            {
+                options.DocumentTitle = "CMS Event Processor API";
+                options.SwaggerEndpoint("../openapi/v1.json", "CMS Event Processor v1");
+                options.ConfigObject.PersistAuthorization = false;
+                options.ConfigObject.ValidatorUrl = null;
+                options.CacheLifetime = null;
+            }).AllowAnonymous();
+        }
+        else
+        {
+            documentation.RequireAuthorization(AccessPolicies.Documentation);
+        }
         await app.RunAsync();
         return 0;
     }

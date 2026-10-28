@@ -26,7 +26,7 @@ Use separate EF read and write contexts. The read context defaults to no trackin
 
 ## Implementation
 
-The [consumer guide](../consumers.md) describes implemented visibility, bounded binary keyset projections, independent read contexts, and coordinated disabling. The shared generated reference accepts any configured identity while each business operation retains its scheme/role policy. Both connections target the same primary for immediate reads; a lagging replica is not claimed. Raw URL/action diagnostic categories are suppressed because IDs/cursors are confidential.
+The [consumer guide](../consumers.md) describes implemented visibility, bounded binary keyset projections, independent read contexts, and coordinated disabling. Development Swagger UI and the generated reference allow anonymous viewing; in other environments, the reference requires any configured identity and the UI is absent. Every business and health operation retains its scheme/role policy in all environments. Both connections target the same primary for immediate reads; a lagging replica is not claimed. Raw URL/action diagnostic categories are suppressed because IDs/cursors are confidential.
 
 ## Required evidence
 

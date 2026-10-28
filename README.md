@@ -123,7 +123,7 @@ The [API contract](docs/api.md) contains behavior and examples. All listed route
 | Method | Route | Access | Purpose | Status |
 | --- | --- | --- | --- | --- |
 | POST | `/cms/events` | CMS | Commit a batch and return final outcomes | Implemented |
-| GET | `/openapi/v1.json` | Any configured account | Download generated documentation with operation-specific security | Implemented |
+| GET | `/openapi/v1.json` | Anonymous in Development; any configured account otherwise | Download generated documentation with operation-specific security | Implemented |
 | GET | `/api/entities` | Reader or administrator | List entities with role-based visibility | Implemented |
 | GET | `/api/entities/{id}` | Reader or administrator | Read an entity with the same visibility rules | Implemented |
 | PUT | `/api/entities/{id}/disable` | Administrator | Apply a persistent local disable | Implemented |
@@ -197,6 +197,8 @@ dotnet run --project CmsEventProcessor --configuration Release --no-build --laun
 ```
 
 The local profile serves `http://127.0.0.1:5080`; HTTP is permitted only from a loopback socket peer. External access requires HTTPS. Startup validates accounts/connections without creating accounts or migrating storage. The local `sa` login and trusted development certificate are setup conveniences; [deployment guidance](docs/deployment.md) separates runtime/migration credentials and trusted TLS.
+
+For interactive API exploration, open `http://127.0.0.1:5080/swagger`. The local profile opens this page automatically when launched by an IDE that honors browser launch settings; plain `dotnet run` starts the host without opening a browser. Viewing Swagger and its specification requires no sign-in in Development. API calls still require credentials: in Swagger's **Authorize** dialog, set `cmsBasic` to the CMS credentials for ingestion and `consumerBasic` to reader or administrator credentials for consumer operations; disabling and health checks require an administrator. Swagger authorization is kept in page memory and is not persisted across refreshes. Use synthetic data: **Try it out** executes real requests against the running database. See [development documentation](docs/development.md#interactive-api-documentation) for access details.
 
 Import the [Postman collection and local template](docs/postman/README.md), fill the three credential pairs privately, and run its 29 requests in order. The first request creates synthetic IDs; every successful ingestion result is final, and consumer checks run immediately. Alternatively, submit [the synthetic batch](docs/examples/cms-batch.json) with CMS Basic credentials. Anonymous consumer requests receive `401`. `/` has no application route; use the documented business, health, or OpenAPI routes.
 

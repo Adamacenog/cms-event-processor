@@ -54,7 +54,7 @@ Encode each ID as one URL segment. The API decodes the original raw segment once
 
 Framework request/routing/action diagnostics can print confidential IDs and cursors. Targeted production filters suppress those categories while safe application logs remain enabled. EF provider logging stays suppressed because exception text may contain values. Tests first reproduced raw-path leakage, then checked the configured boundary. Proxy/access logs must follow the same confidentiality policy; these application checks do not prove external infrastructure behavior.
 
-Any configured account may retrieve generated `/openapi/v1.json`; each operation still declares/enforces its separate CMS or consumer scheme. The [29-request Postman walkthrough](postman/README.md) covers CMS, reader, and administrator flows with immediate reads, empty shared credentials, no polling, and no processing sleeps.
+Generated `/openapi/v1.json` allows anonymous viewing in Development and requires any configured account in other environments; each operation still declares/enforces its separate CMS or consumer scheme. The [29-request Postman walkthrough](postman/README.md) covers CMS, reader, and administrator flows with immediate reads, empty shared credentials, no polling, and no processing sleeps.
 
 ## Verification boundaries
 

@@ -14,6 +14,16 @@ Use the [README setup commands](../README.md#running-locally) to initialize acco
 
 Production rejects plain HTTP. The development profile explicitly permits loopback HTTP; even with that option enabled, a non-loopback socket peer is rejected. Forwarded headers are not trusted. A reverse proxy requires a future explicit trusted-proxy configuration or end-to-end HTTPS; do not disable transport checks to expose a demo.
 
+## Interactive API documentation
+
+Swagger UI is available at `/swagger` only when `ASPNETCORE_ENVIRONMENT=Development`. This is an environment check, independent of Debug/Release build configuration. The `local` launch profile selects Development and sets `launchBrowser: true` and `launchUrl: swagger` for compatible IDEs. Plain `dotnet run --project CmsEventProcessor --configuration Release --no-build --launch-profile local` does not open a browser; navigate to `http://127.0.0.1:5080/swagger` after startup. The application itself never spawns a browser.
+
+In Development, the UI, its bundled assets, and `/openapi/v1.json` allow anonymous viewing without a browser sign-in prompt. This exception covers documentation only; ingestion, consumer reads, administrator actions, and health checks still require their existing credentials and permissions. The specification retains its authenticated availability in other environments; Swagger UI routes are not registered in Production, Staging, or Testing. The normal fallback policy still challenges anonymous requests to unknown routes.
+
+Before executing an API operation, use **Authorize** to enter CMS credentials under `cmsBasic` and reader/administrator credentials under `consumerBasic`. Each operation uses its declared scheme; server-side access rules remain authoritative. Readers cannot disable entities or access health checks, and CMS credentials cannot read consumer content. **Try it out** sends real requests, so use synthetic content and a development database. Refreshing the page clears Swagger's in-memory authorization. No credentials are embedded in the UI, and Swagger does not persist authorization to local storage.
+
+All UI assets are bundled locally, online specification validation is disabled, and documentation responses use `no-store`. The existing transport checks and pre-authentication rate limit also apply to documentation. External access still requires HTTPS.
+
 ## SQL configuration and migrations
 
 Configure both Persistence:WriteConnectionString and Persistence:ReadConnectionString privately before starting the web host. Startup validates their shape without connecting or migrating. Account commands remain independent of SQL. Follow the [SQL guide](persistence.md) for Compose, explicit EF migration commands, runtime privileges, processing budgets, and external test-server configuration.
