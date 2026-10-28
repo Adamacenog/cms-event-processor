@@ -75,7 +75,7 @@ Comparison uses the framework's [JsonElement.DeepEquals](https://learn.microsoft
 
 Duplicate property names are rejected recursively, including escaped-equivalent names and objects inside arrays. Differently cased property names remain distinct. Identifiers retain their exact case/value within the documented length/character constraints. Publish/unpublish require a positive 64-bit version and object payload; optional delete versions are validated but do not order deletion.
 
-The HTTP adapter will still need to enforce body/batch/depth limits, explicit-offset timestamp text, wire action names, and envelope validation. DateTimeOffset domain values normalize already-parsed instants to UTC; they cannot prove whether the original timestamp text included an offset. These remaining checks do not become implemented merely because domain constructors validate their own invariants.
+The HTTP adapter enforces body, batch, and depth limits; explicit-offset timestamp text; supported wire action names; and envelope validation before constructing domain events. Domain values normalize parsed instants to UTC, but cannot independently prove that the original timestamp text included an offset. Keep wire-format guarantees in the adapter and domain invariants in the domain layer.
 
 ## Verification
 
@@ -89,4 +89,4 @@ Run the domain cases from the repository root:
 dotnet test CmsEventProcessor.UnitTests/CmsEventProcessor.UnitTests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~Entities"
 ```
 
-Use the README's restore/build commands before running with --no-build. Current evidence covers pure domain behavior and the existing authentication pipeline. SQL transaction/deletion guarantees, complete batches, migrations, and business endpoints remain subsequent work.
+These unit cases establish pure domain behavior. SQL transaction, deletion, and migration behavior is covered in the [persistence guide](persistence.md); HTTP envelope, authentication, and complete-batch behavior is covered in the [webhook guide](webhook.md); consumer visibility and administrator actions are covered in the [consumer guide](consumers.md). The [verification guide](verification.md) maps those suites to commands and assessment requirements.

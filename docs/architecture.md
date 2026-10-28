@@ -6,7 +6,7 @@
 
 Maintain the latest CMS entity snapshot correctly under duplicate and delayed delivery; keep all content restricted; and make the service straightforward to run and review.
 
-The baseline is .NET 10, ASP.NET Core controllers, EF Core 10, and SQL Server 2022 Developer for local development. Pin supported SDK, package, and container versions when the corresponding artifacts are implemented. Deploy one API application that processes each bounded batch within its HTTP request.
+The baseline is .NET 10, ASP.NET Core controllers, EF Core 10, and SQL Server 2022 Developer for local development. The SDK, package dependencies, and container image are pinned in the checked-in configuration and lock files; update those pins deliberately with the implementation. Deploy one API application that processes each bounded batch within its HTTP request.
 
 Synchronous processing describes the request lifecycle: the response waits for a committed result. Continue using `async`/`await` for database I/O, without blocking threads. There is no hosted worker, queue, durable inbox, or background retry loop.
 
@@ -189,6 +189,6 @@ Provide native .NET and Docker Compose execution with an explicit migration step
 
 SQL Server containers require an x86-64 Linux environment. Apple Silicon reviewers can run the application natively against remote SQL Server/Azure SQL; do not present unsupported container emulation as a guaranteed setup. See [SQL Server platform guidance](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup).
 
-The agreed live demo is local Docker plus an optional temporary Cloudflare Quick Tunnel, within a US$5 ceiling and without provisioning paid hosting. It needs a running computer and has a temporary URL with no uptime guarantee. Use synthetic content and share credentials separately. See [Quick Tunnel documentation](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+The documented demonstration approach is local Docker with an optional temporary Cloudflare Quick Tunnel. It needs a running computer and has a temporary URL with no uptime guarantee. Use synthetic content and share credentials separately. See [Quick Tunnel documentation](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
 
-The [deployment guide](deployment.md) describes Azure VM/Container Apps plus Azure SQL alternatives, including the current transport/probe prerequisites. The design has no continuous queue polling or worker-driven minimum-replica requirement. Evaluate cold-start latency and database availability when selecting hosting settings; do not promise free hosting or a guaranteed cost ceiling. Service Bus, Redis, physical read replicas, and background processing remain future alternatives that require a separate agreed design change.
+The [deployment guide](deployment.md) describes Azure VM/Container Apps plus Azure SQL alternatives, including the current transport/probe prerequisites. The design has no continuous queue polling or worker-driven minimum-replica requirement. Evaluate cold-start latency and database availability when selecting hosting settings; do not imply a deployment or fixed hosting cost has been established. Service Bus, Redis, physical read replicas, and background processing remain future alternatives that require a separate agreed design change.
